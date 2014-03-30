@@ -11,3 +11,9 @@ Team Members:
 * Ravi Kumar
 * David Scott
 
+To init the first node:
+  osascript init.scpt <user> <mac> <m> <node>
+
+To create every subsequent node:
+  osascript node.scpt <user> <mac> <m> <node> <init_node>
+
