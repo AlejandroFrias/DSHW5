@@ -1,0 +1,46 @@
+
+Types of processes:
+
+Storage process - stores things
+	Receives a store message - if it's for me, store, send a notification of this to handler to do backups/responses/etc. If it's not me, send it to the proper storage ID or as close as we can get.
+
+	Retrieve message: see storage messages, but no handlers.
+
+	firstKey, lastKey, numKey: forward to keyHandler which will deal with it
+
+	nodeList: forward to nodeListHandler which...
+
+	leave: leaveHandler! (leave/0)
+
+Non-storage process!
+
+storeHandler - send to next node's storeHandler to be backed up, reply to OW. Also keeps relevant backups
+	receives store message from storage process. Send to next node's relevant backup process (nonstorage, woo) (which is just its storeHandler probably)
+	receives backupStore message from other storeHandlers. It will back it up! save in this storeHandler. Then reply with a stored message with old value to OW
+
+keyHandler: handle firstKey lastKey and numKey
+	first/lastKey: send a message around the ring getting minKeys from the backup held by storeHandler. If the ref is an in-progress request we sent out (are waiting for) then it's done and report to OW, and remove from list of in-progress requests.
+
+nodeListHandler: handle nodeList request from OW. Basically just grab it from global registry and report it.
+
+leaveHandler: leave/0
+
+Messages:
+
+
+
+store message: When a storage process receives a store message destined for another process, it sends a bumpUp message to the messageHandler non-storage process on its node: {OriginPid, Ref, store, Key, Value, HashKey}
+
+reallyStore: sent from a storeHandler to a storage process to actually store something! {OriginPid, Ref, store, Key, Value, HashKey}
+
+Joins: Let's call the joining node $A$ and its successor node $B$.  If $B$ does not exist (i.e. $A$ is the first node) then this is simpler.  Otherwise: Find the node with the most processes using listOfNodes.  Take on the number that gives $A$ half of those processes.  Ask $B$ to send over the entirety of its backup.  The first half of that data is now the backup stored by $A$ and $B$ should delete that data.  The second half of that data will be used to create new storage processes which store that data.  Then message the node previous to $A$ (call it $C$) telling it that it should stop running the processes $A$ is now holding.  $C$ kills the appropriate data storage processes, then informs the OW that $A$ successfully joined.
+
+Faulty Stuff: Consider sequential nodes $A$, $B$, and $C$, where $B$ dies.  $C$ immediately changes its node ID to be the number of $B$, and starts up data storage processes using the backup data it was holding from $B$.  $C$ then sends a message to its successor containing all of its data so that it will be backed up appropriately.  Then send a message around the circle to $A$, to request its backup data.
+
+
+
+all nodes have access to next node (and its handlers etc) because it's this node's last process's next process. We will keep track of the next node as we go
+
+
+splitting up work (integral part of the algorithm)
+	
