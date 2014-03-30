@@ -27,15 +27,20 @@ leaveHandler: leave/0
 
 Messages:
 
+
+
 store message: When a storage process receives a store message destined for another process, it sends a bumpUp message to the messageHandler non-storage process on its node: {OriginPid, Ref, store, Key, Value, HashKey}
 
 reallyStore: sent from a storeHandler to a storage process to actually store something! {OriginPid, Ref, store, Key, Value, HashKey}
 
+Joins: Let's call the joining node $A$ and its successor node $B$.  If $B$ does not exist (i.e. $A$ is the first node) then this is simpler.  Otherwise: Find the node with the most processes using listOfNodes.  Take on the number that gives $A$ half of those processes.  Ask $B$ to send over the entirety of its backup.  The first half of that data is now the backup stored by $A$ and $B$ should delete that data.  The second half of that data will be used to create new storage processes which store that data.  Then message the node previous to $A$ (call it $C$) telling it that it should stop running the processes $A$ is now holding.  $C$ kills the appropriate data storage processes, then informs the OW that $A$ successfully joined.
 
- 
+Faulty Stuff: Consider sequential nodes $A$, $B$, and $C$, where $B$ dies.  $C$ immediately changes its node ID to be the number of $B$, and starts up data storage processes using the backup data it was holding from $B$.  $C$ then sends a message to its successor containing all of its data so that it will be backed up appropriately.  Then send a message around the circle to $A$, to request its backup data.
 
-
-adding a node: pick the node hosting the most processes, take half of them. PIRACY
 
 
 all nodes have access to next node (and its handlers etc) because it's this node's last process's next process. We will keep track of the next node as we go
+
+
+splitting up work (integral part of the algorithm)
+	
