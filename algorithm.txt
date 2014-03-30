@@ -32,7 +32,7 @@ store message: When a storage process receives a store message destined for anot
 reallyStore: sent from a storeHandler to a storage process to actually store something! {OriginPid, Ref, store, Key, Value, HashKey}
 
 
-
+ 
 
 
 adding a node: pick the node hosting the most processes, take half of them. PIRACY
