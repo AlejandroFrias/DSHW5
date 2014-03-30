@@ -1,0 +1,113 @@
+\documentclass[12pt,letterpaper]{article}
+\input{"../../../template preamble.tex"}
+\usepackage{longtable}
+
+\newcolumntype{T}{p{2in}<{\ttfamily}}
+
+\newcommand{\sh}{\tt{store\_handler}}
+\renewcommand{\sp}{\tt{storage\_process}}
+\newcommand{\gs}{\tt{gen\_server}}
+
+\author{Alejandro Frias \and Ravi Kumar \and David Scott}
+\date{\today}
+\title{Distributed Key-Value Storage Algorithm\\CS181E --- Distributed Systems\\Assignment 5}
+\begin{document}
+\maketitle
+
+
+\onehalfspacing
+\section*{Algorithm Description}
+
+
+\setlength{\extrarowheight}{5pt}
+\setlength{\LTcapwidth}{\textwidth}
+
+\begin{longtable}{p{4.5in}T}
+\caption{Caption}
+\label{msgTable}\\
+\textbf{Message Description} & \textbf{Erlang Pattern} \\
+\hline
+\endhead
+\hline \multicolumn{2}{|r|}{{This table continues on the next page...}} \\ \hline
+\endfoot
+\endlastfoot
+
+Request to backup a store.  Sent and received by \sh.  The receiver backs up the data, then notifies the OW of the store's success, and the old value.  Sent by a \sh{} when it receives a \tt{store} message from one of its storage processes. & \{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
+
+Messages about keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over, and send the result \tt{ComputationSoFar} back to the OW.  Otherwise, perform a step of the computation and forward the message to the next node's \sh.  & \{Pid, Ref, *\_key, ComputationSoFar\} \\
+
+Leave request.  Sent by OW; received by \sh{} or \sp.  If received by a \sp, just forward it to the \sh.  If received by a \sh, just kill the entire node. & blah \\
+
+Joining behind. Received and sent by \sh.  When received, send all stored backup data to \tt{Pid}, then delete all backup data for processes numbered less than \tt{NodeID}.  Is sent by a new node with ID \tt{NodeID} to the pre-existing node that is sequentially after it. & \{Pid, joining\_behind, NodeID\} \\
+
+Joining in front.  Received and sent by \sh.  When receiving such a message: if your ID is equal to \tt{DestID}, kill the data storage processes that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one. & \{joining\_front, NodeID, DestID\} \\
+
+Node with \tt{NodeID} died.  Received by \sh, sent by a \gs{} listener started by that particular \sh.  When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data storage processes.  Then it deletes the backup data, and sends a \tt{backup\_request} message around the ring. & blah \\
+
+Backup node data.  Received and sent by \sh.  When received, add all the data to existing backup data.  Sent to a node $A$'s successor when $A$'s predecessor died and $A$ is taking over for its predecessor.  & \{backup\_node, Data\} \\
+
+Backup request.  Received and sent by \sh.  If it is received on the node with \tt{DestID}, send each of this node's \sp es an \tt{all\_data} message.  After compiling all of the results from those requests, send all of this node's stored data to this node's successor node in a \tt{backup\_node} message.  If this node is not \tt{DestID}, just forward the request message.  Initially sent by a node which stepped into the void left by a node that died.  & \{backup\_request, DestID\} \\
+
+All data request message.  Received by \sp{} and sent by \sh.  When received by a \sp, respond with an \tt{all\_data\_send} message containing all this \sp's data.  & \{all\_data, Pid\} \\
+
+All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to a \tt{backup\_request} message that's in progress; if it's the last response that was being waited for, send the \tt{backup\_request}. & \{all\_data, Data, Pid\}
+
+
+
+%\textbf{Current state} & \textbf{Conditions} & \textbf{Actions} \\
+%\hline
+%\endhead
+%\hline \multicolumn{3}{|r|}{{This table continues on the next page...}} \\ \hline
+%\endfoot
+%\endlastfoot
+%
+%Thinking & Receive a request for a fork & Send that fork \\*
+%& Told to transition to \hungry & For each fork not currently held, send a fork request message to the corresponding neighbor.  Transition to \hungry. \\*
+%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list and send a return message acknowledging that request.} \\*
+%& \emph{Told to transition to \leaving} & \emph{For each fork not currently held, send a fork request message to the corresponding neighbor.  Transition to \leaving.} \\*
+%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
+%\hline
+%Hungry & Receive a fork & Rejoice \\*
+%& Receive a request for a fork, and that fork is \clean & Hold onto that request for later \\*
+%& Receive a request for a fork, and that fork is \dirty & Send that fork, immediately followed by a message requesting that fork \\*
+%& Hold all my forks & Transition to \eating{} and alert the controller to this \\*
+%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list, send a message to the new neighbor acknowledging that request, then immediately send that philosopher a message requesting a fork.} \\*
+%& \emph{Told to transition to \leaving} & \emph{Transition to \leaving.}\\*
+%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
+%\hline
+%Eating & Receive a request for a fork & Hold onto that request for later \\*
+%& Told to transition to \thinking &  Mark all forks dirty, and grant all pending requests for forks. \emph{Acknowledge all pending requests for edges and add any new philosophers to my neighbor list.}  Transition to \thinking. \\*
+%& \emph{Receive a request for a new edge} & \emph{Hold onto that request for later} \\*
+%& \emph{Told to transition to \leaving} & \emph{Acknowledge any pending new-edge requests and add any new philosophers to my neighbor list.  Ignore any pending fork requests.  Transition to \leaving.} \\*
+%%& \emph{Receive a \leaving{} message} & \emph{This is, perhaps surprisingly, impossible.} \\*
+%\hline
+%\emph{Joining} & \emph{Come into existence in the joining state} & \emph{Send edge requests to all neighbors that I'm supposed to have.  Make sure all my forks are dirty.}\\*
+%& \emph{Receive a request for a new edge} & \emph{Acknowledge that request and add the new philosopher to my neighbor list.} \\*
+%& \emph{Receive a request for a fork} & \emph{Send that fork} \\*
+%& \emph{Received acknowledgments to all requests for new edges} & \emph{Transition to \thinking{}} \\*
+%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
+%\hline 
+%\emph{Leaving} & \emph{Receive a fork} & \emph{Rejoice} \\*
+%& \emph{Receive a request for a fork, and that fork is \clean} & \emph{Ignore the request} \\*
+%& \emph{Receive a request for a fork, and that fork is \dirty} & \emph{Send that fork, immediately followed by a message requesting that fork} \\*
+%& \emph{Hold all my forks} & \emph{Send a \leaving{} message to each neighbor.  Mark all forks as \clean.} \\*
+%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list, send a message to the new neighbor acknowledging that request, then immediately send that philosopher a message requesting a fork.} \\*
+%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
+%& \emph{Receive a \leaving{} acknowledgement} & \emph{Jubilate!} \\*
+%& \emph{Have received a \leaving{} acknowledgement from every neighbor} & \emph{Transition to \gone{} and alert the controller to this.}\\*
+%%\emph{Leaving} & \emph{Receive a fork} & \emph{Send its sender a \leaving{} message} \\
+%%& \emph{Receive a request for a new edge} & \emph{Acknowledge that request and immediately send a \leaving{} message to that philosopher.  Don't bother adding it to my neighbor list since I won't be around long enough to care.} \\
+%%& \emph{Receive a request for a fork} & \emph{Ignore the request} \\
+%%& \emph{Have all of my forks} & \emph{Transition to \gone, and inform the controller of that} \\
+%\hline
+%\emph{Gone} & \emph{Anything happens} & \emph{Do nothing: I'm dead, Jim!}
+\end{longtable}
+
+\clearpage
+\onehalfspacing
+
+\section*{Correctness}
+
+
+
+\end{document}
