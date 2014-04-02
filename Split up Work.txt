@@ -1,0 +1,28 @@
+Split up Work:
+
+Ravi:
+ * Messages and Setup
+
+Alejandro:
+ * Send pictures of the white board to everyone for reference
+ * Description + Correctness Argument
+
+Scott:
+ * Pictures/Diagrams
+ * Possibly start coding gen server stuff, so we can split the code
+
+
+Algorithm TeX File:
+ * Messages (each type of message, what information is passed, who sends/receives and when/what does mean)
+ * The Setup (what types of processes there are, what they do/are responsible for, what info store, who they communicate with) [mostly transcribe from pictures]
+   - Storage Process
+   - Handler
+ * Description of the overall algorithm (go through each action)
+    - Joining Process
+    - Storing Process
+    - Retrieving
+    - Crash handling/Leaving Process
+ * Correctness argument (possibly in-line with description)
+
+Coding:
+  To be split up this weekend
