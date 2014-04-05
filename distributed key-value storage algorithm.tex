@@ -14,9 +14,9 @@
 \usepackage{tikz}
 \usepackage{tkz-graph}
 \usepackage{listings}
-\usepackage{slashbox}
+%\usepackage{slashbox}
 \usepackage{array}
-\usepackage{logicsym}
+%\usepackage{logicsym}
 \usepackage{amssymb}
 \usepackage{etoolbox}
 \usepackage{pdfpages}
@@ -74,25 +74,43 @@ mathescape=true}
 \endfoot
 \endlastfoot
 
-Store Request. Sent by either OW or a storage process to a storage process to store \tt{value} for \tt{key}. These are only ever received by storage processes in the network. When a storage process receives such a message, it first checks if the hashed key is equal to its own ID. If it is, then it stores the value for the specified key, and sends a \tt{backup_store} message to its \sh. If not, it forwards it to the closest storage process to the destination (closest here meaning nearest process \textit{before} the destination, since processes can only send messages forward in the ring). &
-\{Pid, Ref, store, Key, Value} \\
+Store Request. Sent by either OW or a \sp to a \sp to store \tt{value} for \tt{key}. These are only ever received by storage processes in the network. When an \sp receives such a message, it first checks if the hashed key is equal to its own ID. If it is, then it stores the value for the specified key, and sends a \tt{backup\_store} message to its \sh. If not, it forwards it to the closest storage process to the destination (closest here meaning nearest process \textit{before} the destination, since processes can only send messages forward in the ring). &
+\{Pid, Ref, store, Key, Value\} \\
 
 Stored Confirmation. Sent by an \sh to OW after the corresponding request has been stored in the proper storage process and the data has been backed up in the \sh sending the message. &
-{Ref, stored, Old_Value} \\
-
-Leave Request.  Sent by OW; received by \sh{} or \sp.  If received by a \sp, just forward it to the \sh.  If received by a \sh, just kill the entire node. & \{Pid, Ref, \tt{leave}\} \\
+\{Ref, stored, Old\_Value\} \\
 
 Retrieve Request. Sent by OW and storage processes; received by storage processes. When a storage processes receives such a message, it checks if the hash of the key is equal to its own process ID. If it is, the storage process has the value for that key, and replies with a retrieve response. If not, it forwards it to the closest storage process to the destination (closest as defined above). &
 \{Pid, Ref, retrieve, Key\} \\
 
-Retrieve Response. Sent by storage processes to the OW. After a storage process receives a retrieve request meant for it, it looks up the relevant value and reports it to the requesting process in the OW. \\
-& \{Ref, retrieved, Value\} \\
+Retrieve Response. Sent by storage processes to the OW. After a storage process receives a retrieve request meant for it, it looks up the relevant value and reports it to the requesting process in the OW. &
+\{Ref, retrieved, Value\} \\
 
-First Key Request. 
+First Key Request. Sent by the OW to storage processes, and by storage processes to storage handlers. When a storage process receieves this, it will forward the message up to its storage handler. When such a message is received by a storage handler, it will start a first key computation by adding the ref to its list of ongoing computations and sending a First Key Computation message to the next node in the ring. &
+\{Pid, Ref, first\_key\} \\
 
-Request to backup a store.  Sent and received by \sh.  The receiver backs up the data, then notifies the OW of the store's success, and the old value.  Sent by a \sh{} when it receives a \tt{store} message from one of its storage processes. & \{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
+Last Key Request. Sent by the OW to storage processes, and by storage processes to storage handlers. When a storage process receieves this, it will forward the message up to its storage handler. When such a message is received by a storage handler, it will start a last key computation by adding the ref to its list of ongoing computations and sending a Last Key Computation message to the next node in the ring. &
+\{Pid, Ref, last\_key\} \\
 
-Messages about keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over, and send the result \tt{ComputationSoFar} back to the OW.  Otherwise, perform a step of the computation and forward the message to the next node's \sh.  & \{Pid, Ref, *\_key, ComputationSoFar\} \\
+Num Keys Request. Sent by the OW to storage processes, and by storage processes to storage handlers. When a storage process receieves this, it will forward the message up to its storage handler. When such a message is received by a storage handler, it will start a num keys computation by adding the ref to its list of ongoing computations and sending a Num Keys Computation message to the next node in the ring. &
+\{Pid, Ref, num\_keys\} \\
+
+Node List Request. Sent by the OW to storage processes, and by storage processes to storage handlers. When a \sp receieves this, it will forward the message up to its \sh When such a message is received by a \sh, it will query the global registry for the list of nodes and report that data to the requester. &
+\{Pid, Ref, node\_list\} \\
+
+Request Result. Sent to the OW by a storage handler. This reports the result of a First Key, Last Key, Num Keys, or Node List Request to the original requester after the storage handlers have finished computing the result. &
+\{Ref, result, Result\} \\
+
+Failure Notification. Sent to the OW by storage handlers or storage processes to notify the OW that a particular computation has failed. &
+\{Ref, failure\} \\
+
+Leave Request. Sent by the OW to storage processes and by storage processes to storage handlers. When received by a \sp, it forwards the message to its \sh. When received by an \sh, it immediately kills all storage processes on the node it is running on, and kills itself. &
+\{Pid, Ref, leave\} \\
+
+Backup Store Request. Sent by \sh and \sp, and received by \sh. If a \sh receives this message from a \sp, it forwards the message to the next \sh. If an \sh receives this message from another \sh, it will back up the data in the message, then notify the OW of the store's success and the old value. & 
+\{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
+
+Messages About Keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over, and send the result \tt{ComputationSoFar} back to the OW.  Otherwise, perform a step of the computation and forward the message to the next node's \sh.  & \{Pid, Ref, *\_key, ComputationSoFar\} \\
 
 Joining behind. Received and sent by \sh.  When received, send all stored backup data to \tt{Pid}, then delete all backup data for processes numbered less than \tt{NodeID}.  Is sent by a new node with ID \tt{NodeID} to the pre-existing node that is sequentially after it. & \{Pid, joining\_behind, NodeID\} \\
 
