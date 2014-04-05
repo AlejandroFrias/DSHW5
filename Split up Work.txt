@@ -7,7 +7,7 @@ Alejandro:
  * Send pictures of the white board to everyone for reference
  * Description + Correctness Argument
 
-Scott:
+David:
  * Pictures/Diagrams
  * Possibly start coding gen server stuff, so we can split the code
 
