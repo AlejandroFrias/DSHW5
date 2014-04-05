@@ -1,6 +1,48 @@
 \documentclass[12pt,letterpaper]{article}
-\input{"../../../template preamble.tex"}
+\usepackage[margin=.65in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsfonts}
+\usepackage{enumerate}
+\usepackage{setspace}
+\usepackage{mathtools}
+\usepackage{siunitx}
+\usepackage{multicol}
+\usepackage{grffile}
+\usepackage{hyperref}
+\usepackage{pbox}
+\usepackage{qtree}
+\usepackage{tikz}
+\usepackage{tkz-graph}
+\usepackage{listings}
+\usepackage{slashbox}
+\usepackage{array}
+\usepackage{logicsym}
+\usepackage{amssymb}
+\usepackage{etoolbox}
+\usepackage{pdfpages}
 \usepackage{longtable}
+
+\lstset{basicstyle=\ttfamily,
+escapeinside={||},
+mathescape=true}
+
+\sisetup{per-mode=symbol, group-digits=false, separate-uncertainty=true}
+
+\renewcommand{\tt}[1]{\texttt{#1}}
+
+%Centered multi-row box
+\newcommand{\cmrb}[3][0.8in]{\parbox{#1}{\centering #2 \\ #3 } }
+
+%Circled character
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=2pt] (char) {#1};}}
+
+\makeatletter
+\newcommand{\vast}{\bBigg@{4}}
+\newcommand{\Vast}{\bBigg@{5}}
+\makeatother
+
+\everymath{\displaystyle}
 
 \newcolumntype{T}{p{2in}<{\ttfamily}}
 
