@@ -32,17 +32,31 @@
 \endfoot
 \endlastfoot
 
+Store Request. Sent by either OW or a storage process to a storage process to store \tt{value} for \tt{key}. These are only ever received by storage processes in the network. When a storage process receives such a message, it first checks if the hashed key is equal to its own ID. If it is, then it stores the value for the specified key, and sends a \tt{backup_store} message to its \sh. If not, it forwards it to the closest storage process to the destination (closest here meaning nearest process \textit{before} the destination, since processes can only send messages forward in the ring). &
+\{Pid, Ref, store, Key, Value} \\
+
+Stored Confirmation. Sent by an \sh to OW after the corresponding request has been stored in the proper storage process and the data has been backed up in the \sh sending the message. &
+{Ref, stored, Old_Value} \\
+
+Leave Request.  Sent by OW; received by \sh{} or \sp.  If received by a \sp, just forward it to the \sh.  If received by a \sh, just kill the entire node. & \{Pid, Ref, \tt{leave}\} \\
+
+Retrieve Request. Sent by OW and storage processes; received by storage processes. When a storage processes receives such a message, it checks if the hash of the key is equal to its own process ID. If it is, the storage process has the value for that key, and replies with a retrieve response. If not, it forwards it to the closest storage process to the destination (closest as defined above). &
+\{Pid, Ref, retrieve, Key\} \\
+
+Retrieve Response. Sent by storage processes to the OW. After a storage process receives a retrieve request meant for it, it looks up the relevant value and reports it to the requesting process in the OW. \\
+& \{Ref, retrieved, Value\} \\
+
+First Key Request. 
+
 Request to backup a store.  Sent and received by \sh.  The receiver backs up the data, then notifies the OW of the store's success, and the old value.  Sent by a \sh{} when it receives a \tt{store} message from one of its storage processes. & \{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
 
 Messages about keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over, and send the result \tt{ComputationSoFar} back to the OW.  Otherwise, perform a step of the computation and forward the message to the next node's \sh.  & \{Pid, Ref, *\_key, ComputationSoFar\} \\
-
-Leave request.  Sent by OW; received by \sh{} or \sp.  If received by a \sp, just forward it to the \sh.  If received by a \sh, just kill the entire node. & blah \\
 
 Joining behind. Received and sent by \sh.  When received, send all stored backup data to \tt{Pid}, then delete all backup data for processes numbered less than \tt{NodeID}.  Is sent by a new node with ID \tt{NodeID} to the pre-existing node that is sequentially after it. & \{Pid, joining\_behind, NodeID\} \\
 
 Joining in front.  Received and sent by \sh.  When receiving such a message: if your ID is equal to \tt{DestID}, kill the data storage processes that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one. & \{joining\_front, NodeID, DestID\} \\
 
-Node with \tt{NodeID} died.  Received by \sh, sent by a \gs{} listener started by that particular \sh.  When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data storage processes.  Then it deletes the backup data, and sends a \tt{backup\_request} message around the ring. & blah \\
+Node with \tt{NodeID} died.  Received by \sh, sent by a \gs{} listener started by that particular \sh.  When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data storage processes.  Then it deletes the backup data, and sends a \tt{backup\_request} message around the ring. & \{died, NodeID\} \\
 
 Backup node data.  Received and sent by \sh.  When received, add all the data to existing backup data.  Sent to a node $A$'s successor when $A$'s predecessor died and $A$ is taking over for its predecessor.  & \{backup\_node, Data\} \\
 
