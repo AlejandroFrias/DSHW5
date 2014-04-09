@@ -31,18 +31,47 @@
 %    See all data send and all data request messages
 
 %Start up everything as the first node in a system
-init({M, Name}) ->
-	MyID = %my ID
+%Start ID will always be 0
+init({M, MyID}) ->
+	utils:log("Handler starting with node ID ~w and no next ID", [MyID]),
+	Names = global:registered_names(),
+  	io:format("Registered names (first handler): ~w~n", [Names]),
+
+	startAllSPs(0, math:pow(2, M) - 1),
+	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
+		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
+		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}; %Fix these keys
+
+%Start up everything as a non-first node in a system
+init({M, MyID, NextNodeID}) -> 
+	utils:log("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID]),
+	Names = global:registered_names(),
+  	io:format("Registered names (new handler): ~w~n", [Names]),
+
 	startAllSPs(0, math:pow(2, M) - 1),
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
-		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0} %Fix these keys
+		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
 
-%Start up everything as a non-first node in a system
-init({M, Name, Other}) -> true.
 
+
+handle_call(getState, _, S) ->
+	{noreply, S}.
+
+handle_cast({Node, _}, S) ->
+	{noreply, S}.
+
+handle_info({Pid, Ref, chill}, S) ->
+	{noreply, S}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+terminate(_Reason, _State) ->
+    lal.
 
 startAllSPs(Start, Stop) ->
+	true.
 	%Start the SP
-	gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
+	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
 	

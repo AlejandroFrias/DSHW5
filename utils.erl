@@ -4,7 +4,7 @@
 %% @author Alejandro Frias
 %% @doc "utils" A toolbox for Distributed Systems
 
--module (dsutils).
+-module (utils).
 
 -export ([timestamp/0, log/1, log/2, first_n_elements/2]).
 
