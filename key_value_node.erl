@@ -58,7 +58,7 @@ mainHelp(M, Name, Other) ->
     % Erlang networking boilerplate 
     _ = os:cmd("epmd -daemon"),
     net_kernel:start([list_to_atom(Name), shortnames]),
-    net_kernel:connect_node(Other),
+    net_kernel:connect_node(list_to_atom(Other)),
     %Compute right place to start
     Names = global:registered_names(),
     io:format("Registered names: ~w~n", [Names]),
