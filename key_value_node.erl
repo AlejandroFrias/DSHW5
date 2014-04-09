@@ -58,18 +58,16 @@ mainHelp(M, Name, Other) ->
     % Erlang networking boilerplate 
     _ = os:cmd("epmd -daemon"),
     net_kernel:start([list_to_atom(Name), shortnames]),
-
+    net_kernel:connect_node(Other),
     %Compute right place to start
     Names = global:registered_names(),
     io:format("Registered names: ~w~n", [Names]),
-    %HandlerNames = handlerFilter(Names),
+    HandlerNames = handlerFilter(Names),
     io:format("THERERER~n"),
-    %{NewHandlerID, NextHandlerID} = findWidestHandlerGap(HandlerNames, M),
-    NewHandlerID = 9000,
-    NextHandlerID = 0,
+    {NewHandlerID, NextHandlerID} = findWidestHandlerGap(HandlerNames, M),
 
 	%Start the SH
-	utils:log("Staring storage handler with ID ~w~n", [NewHandlerID]),
+	utils:log("Staring storage handler with ID ~n", [NewHandlerID]),
 	%Maybe should not be global?
 	%SHOULD HAVE THE RIGHT PROC INDEX
 	%Note: This is starting a dummy process so it can figure out where it should be.
@@ -106,11 +104,10 @@ mainHelp(M, Name) ->
   %end,
 
   global:register_name(stupid, self()	),
-  timer:sleep(5000),
+  timer:sleep(10000),
 
   Names = global:registered_names(),
   io:format("Registered names (main): ~w~n", [Names]),
-  io:format("Global groups: ~w~n", [global_group:global_groups()]),
   halt().
 
 
