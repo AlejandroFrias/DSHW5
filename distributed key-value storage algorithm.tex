@@ -110,21 +110,30 @@ Leave Request. Sent by the OW to storage processes and by storage processes to s
 Backup Store Request. Sent by \sh and \sp, and received by \sh. If a \sh receives this message from a \sp, it forwards the message to the next \sh. If an \sh receives this message from another \sh, it will back up the data in the message, then notify the OW of the store's success and the old value. & 
 \{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
 
-Messages About Keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over, and send the result \tt{ComputationSoFar} back to the OW.  Otherwise, perform a step of the computation and forward the message to the next node's \sh.  & \{Pid, Ref, *\_key, ComputationSoFar\} \\
+Messages About Keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over and the received message contains the result. The receiver will then send the result \tt{ComputationSoFar} back to the OW.  Otherwise, it will update \tt{ComputationSoFar} with its relevant value and forward the message to the next node's \sh.  &
+\{Pid, Ref, *\_key, ComputationSoFar\} \\
 
-Joining behind. Received and sent by \sh.  When received, send all stored backup data to \tt{Pid}, then delete all backup data for processes numbered less than \tt{NodeID}.  Is sent by a new node with ID \tt{NodeID} to the pre-existing node that is sequentially after it. & \{Pid, joining\_behind, NodeID\} \\
+Joining Behind. Received and sent by \sh. A \sh will send this when it is joining to the next node's \sh to indicate that it is joining behind the recipient in the ring. When received, send all stored backup data to the sender, then delete all backup data for processes numbered less than \tt{NodeID}. &
+\{Pid, joining\_behind, NodeID\} \\
 
-Joining in front.  Received and sent by \sh.  When receiving such a message: if your ID is equal to \tt{DestID}, kill the data storage processes that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one. & \{joining\_front, NodeID, DestID\} \\
+Joining in Front.  Received and sent by \sh. A \sh will send this when it is joining to the previous node's \sh to indicate that it is joining in front of the recipient in the ring. When receiving such a message, % if your ID is equal to \tt{DestID}, 
+kill the data storage processes that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one. &
+\{joining\_front, NodeID, DestID\} \\
 
-Node with \tt{NodeID} died.  Received by \sh, sent by a \gs{} listener started by that particular \sh.  When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data storage processes.  Then it deletes the backup data, and sends a \tt{backup\_request} message around the ring. & \{died, NodeID\} \\
+Node with \tt{NodeID} Died.  Received by \sh, sent by a \gs{} listener started by that particular \sh. This is a notification that the node behind the receiving node has stopped running. When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data storage processes.  Then it deletes the backup data, and sends a \tt{backup\_request} message around the ring, to get the data it should be backing up from the node behind it. & \{died, NodeID\} \\
 
-Backup node data.  Received and sent by \sh.  When received, add all the data to existing backup data.  Sent to a node $A$'s successor when $A$'s predecessor died and $A$ is taking over for its predecessor.  & \{backup\_node, Data\} \\
+Backup Node Data.  Received and sent by \sh.  When received, add all the data to existing backup data. Send by a node $A$'s predecessor when node $A$ died and $A$'s successor is taking over for it.&
+%Sent to a node $A$'s successor when $A$'s predecessor died and $A$ is taking over for its predecessor.  & 
+\{backup\_node, Data\} \\
 
-Backup request.  Received and sent by \sh.  If it is received on the node with \tt{DestID}, send each of this node's \sp es an \tt{all\_data} message.  After compiling all of the results from those requests, send all of this node's stored data to this node's successor node in a \tt{backup\_node} message.  If this node is not \tt{DestID}, just forward the request message.  Initially sent by a node which stepped into the void left by a node that died.  & \{backup\_request, DestID\} \\
+Backup Request.  Received and sent by \sh.  If it is received on the node with \tt{DestID}, send each of this node's \sp es an \tt{all\_data} message.  After compiling all of the results from those requests, send all of this node's stored data to this node's successor node in a \tt{backup\_node} message.  If this node is not \tt{DestID}, just forward the request message to the next node's \sh. Initially sent by a node which stepped into the void left by a node that died.  & 
+\{backup\_request, DestID\} \\
 
-All data request message.  Received by \sp{} and sent by \sh.  When received by a \sp, respond with an \tt{all\_data\_send} message containing all this \sp's data.  & \{all\_data, Pid\} \\
+All data request message.  Received by \sp{} and sent by \sh.  When received by a \sp, respond with an \tt{all\_data\_send} message containing all this \sp's data.  & 
+\{all\_data, Pid\} \\
 
-All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to a \tt{backup\_request} message that's in progress; if it's the last response that was being waited for, send the \tt{backup\_request}. & \{all\_data, Data, Pid\}
+All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to an ongoing list of data and removes the sender from the list of processes it is waiting for. If it's the last response that was being waited for, send the \tt{backup\_node} message to the next node. & 
+\{all\_data, Data, Pid\}
 
 
 
