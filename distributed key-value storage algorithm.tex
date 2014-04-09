@@ -126,62 +126,18 @@ All data request message.  Received by \sp{} and sent by \sh.  When received by 
 
 All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to a \tt{backup\_request} message that's in progress; if it's the last response that was being waited for, send the \tt{backup\_request}. & \{all\_data, Data, Pid\}
 
-
-
-%\textbf{Current state} & \textbf{Conditions} & \textbf{Actions} \\
-%\hline
-%\endhead
-%\hline \multicolumn{3}{|r|}{{This table continues on the next page...}} \\ \hline
-%\endfoot
-%\endlastfoot
-%
-%Thinking & Receive a request for a fork & Send that fork \\*
-%& Told to transition to \hungry & For each fork not currently held, send a fork request message to the corresponding neighbor.  Transition to \hungry. \\*
-%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list and send a return message acknowledging that request.} \\*
-%& \emph{Told to transition to \leaving} & \emph{For each fork not currently held, send a fork request message to the corresponding neighbor.  Transition to \leaving.} \\*
-%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
-%\hline
-%Hungry & Receive a fork & Rejoice \\*
-%& Receive a request for a fork, and that fork is \clean & Hold onto that request for later \\*
-%& Receive a request for a fork, and that fork is \dirty & Send that fork, immediately followed by a message requesting that fork \\*
-%& Hold all my forks & Transition to \eating{} and alert the controller to this \\*
-%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list, send a message to the new neighbor acknowledging that request, then immediately send that philosopher a message requesting a fork.} \\*
-%& \emph{Told to transition to \leaving} & \emph{Transition to \leaving.}\\*
-%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
-%\hline
-%Eating & Receive a request for a fork & Hold onto that request for later \\*
-%& Told to transition to \thinking &  Mark all forks dirty, and grant all pending requests for forks. \emph{Acknowledge all pending requests for edges and add any new philosophers to my neighbor list.}  Transition to \thinking. \\*
-%& \emph{Receive a request for a new edge} & \emph{Hold onto that request for later} \\*
-%& \emph{Told to transition to \leaving} & \emph{Acknowledge any pending new-edge requests and add any new philosophers to my neighbor list.  Ignore any pending fork requests.  Transition to \leaving.} \\*
-%%& \emph{Receive a \leaving{} message} & \emph{This is, perhaps surprisingly, impossible.} \\*
-%\hline
-%\emph{Joining} & \emph{Come into existence in the joining state} & \emph{Send edge requests to all neighbors that I'm supposed to have.  Make sure all my forks are dirty.}\\*
-%& \emph{Receive a request for a new edge} & \emph{Acknowledge that request and add the new philosopher to my neighbor list.} \\*
-%& \emph{Receive a request for a fork} & \emph{Send that fork} \\*
-%& \emph{Received acknowledgments to all requests for new edges} & \emph{Transition to \thinking{}} \\*
-%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
-%\hline 
-%\emph{Leaving} & \emph{Receive a fork} & \emph{Rejoice} \\*
-%& \emph{Receive a request for a fork, and that fork is \clean} & \emph{Ignore the request} \\*
-%& \emph{Receive a request for a fork, and that fork is \dirty} & \emph{Send that fork, immediately followed by a message requesting that fork} \\*
-%& \emph{Hold all my forks} & \emph{Send a \leaving{} message to each neighbor.  Mark all forks as \clean.} \\*
-%& \emph{Receive a request for a new edge} & \emph{Add the new philosopher to my neighbor list, send a message to the new neighbor acknowledging that request, then immediately send that philosopher a message requesting a fork.} \\*
-%& \emph{Receive a \leaving{} message} & \emph{Respond with an acknowledgement message.  Remove the corresponding philosopher from my list of neighbors, and remove all references to its fork.} \\*
-%& \emph{Receive a \leaving{} acknowledgement} & \emph{Jubilate!} \\*
-%& \emph{Have received a \leaving{} acknowledgement from every neighbor} & \emph{Transition to \gone{} and alert the controller to this.}\\*
-%%\emph{Leaving} & \emph{Receive a fork} & \emph{Send its sender a \leaving{} message} \\
-%%& \emph{Receive a request for a new edge} & \emph{Acknowledge that request and immediately send a \leaving{} message to that philosopher.  Don't bother adding it to my neighbor list since I won't be around long enough to care.} \\
-%%& \emph{Receive a request for a fork} & \emph{Ignore the request} \\
-%%& \emph{Have all of my forks} & \emph{Transition to \gone, and inform the controller of that} \\
-%\hline
-%\emph{Gone} & \emph{Anything happens} & \emph{Do nothing: I'm dead, Jim!}
 \end{longtable}
 
 \clearpage
 \onehalfspacing
 
-\section*{Correctness}
-
-
+\section*{Our Setup and Some Correctness}
+The setup:
+Each node has a backup of the node preceding it, held by a non-storage process for that node that we call the handler, since it also handles much of the inter-system communication. Each node is listening to the preceding node for crashes. In this way each node has one node that it is responsible for and one that is responsible for it. \\
+When a node enters the system, it does so in the middle of the node that is responsible for the most storage processes (breaking ties arbitrarily by process ID number). The new node grabs the entire backup data of all the storage processes of the node that this new node is entering in the middle of from the next node, and in the process tells that next node to delete the first half of its data since it will be backing it up. It uses the first half of that data to create its backup and the other half to start the storage processes it will be responsible for. In this way we minimize the number of nodes a joining node talks to to two (sorry for that sentence). \\
+When a node crashes or leaves, the next node finds out having been the only one listening to it. Since it has the entire backup data of that node, it can immediately startup all of the processes that just died. So it takes over the dead node, changing it's own node number to the one of the deceased. Then, since we lost some backup data of the dead node, it sends a request around the ring to the node just previous to it to get all the data on that node's processes. This takes a maximum of $m$ messages, where there are $2^m$ processes. In this way we can get the system back up and running immediately and then, while still accepting requests from the outside world, start rebuilding the back up. \\
+To ensure redundancy, a storage process never communicates back to the outside world directly when a store request comes in. Instead, after forwarding it to the correct storage process, it stores the new key-value pair and tells it's nodes handler process that it did so. The handler then sends this to the next node to be backed up. That next node will then notify the outside world that the value has been stored after it stores the backup. This ensures every store request has been backed up before letting the outside world know. Also, very few messages need to be passed. It takes a maximum of $m$ messages to get the store request to the right storage process and then a couple more after that to back it up and respond to the outside world, since the next node is guaranteed to be visible to the node that has that storage process (part of why we chose to have nodes store the back up of the previous node). \\
+Messages about the system, like first-key and last-key are forwarded directly to the handler process to take care of. The process will start a message around that will go around the ring and will store that node's contribution to calculating the first key or number of keys. Since each handler has a backup of the previous node, it doesn't need to communicate directly with each of the processes, but instead just sees if the first-key that has been found is better or worse than it's first key, or similar comparison for the other key requests. Once a handler gets it's message back, it can tell the outside person the result of the snapshot. These system processes scale with the number of nodes and are guaranteed to work if the a node doesn't crash mid computation. Each node's computation will be constant since it can keep track of the first key, the last key, and the number of keys in it's back up as store requests come in. And since a completely stored value is only considered complete once the handler has backed up one up, we're guaranteed to be accurate. \\
+Retrieve requests are the only messages that storage processes deal with completely without the handler. They simply forward the message along the closest chord or if they have the value (or should have the value), return the result to the outside world.
 
 \end{document}
