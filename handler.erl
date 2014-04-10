@@ -222,8 +222,6 @@ terminate(_Reason, _State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-twoM(M) -> 1 bsl M.
-
 distTo(ID, S) ->
 	utils:modDist(?m, ?myID, ID).
 isMyProcess(ID, S) ->
@@ -235,11 +233,11 @@ twoM(M) -> 1 bsl M.
 %% init
 startAllSPs(Start, Stop, M, HandlerID) when Stop =/= Start ->
 	%Start the SP
-	gen_server:start({global, ?STORAGEPROCNAME(STOP)}, storage, {M, Stop, HandlerID}, []),
-	startAllSPs(Start, (Stop - 1) rem twoM(M), HandlerID);
+	gen_server:start({global, ?STORAGEPROCNAME(Stop)}, storage, {M, Stop, HandlerID}, []),
+	startAllSPs(Start, (Stop - 1) rem twoM(M), M, HandlerID);
 
-startAllSPs(Start, Stop, HandlerID) when Stop == Start -> 
-	gen_server:start({global, ?STORAGEPROCNAME(STOP)}, storage, {M, Stop, HandlerID}, []),
+startAllSPs(Start, Stop, M, HandlerID) when Stop == Start -> 
+	gen_server:start({global, ?STORAGEPROCNAME(Stop)}, storage, {M, Stop, HandlerID}, []),
 	done.
 
 %% backup_store

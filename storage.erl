@@ -60,7 +60,7 @@ findClosestTo(_Dest, Me, M) ->
 %%%============================================================================
 
 init( {M, MyID, MyHandlerID} ) ->
-    utils:log( "Starting storage process ~p on node ~p." ),
+    utils:log( "Starting storage process ~w on node ~w.", [MyID, MyHandlerID]),
     MyDict = dict:new(),
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
