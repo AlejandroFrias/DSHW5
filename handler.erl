@@ -57,7 +57,7 @@ init({M, MyID}) ->
 	Names = global:registered_names(),
   	utils:log("Registered names (first handler): ~w~n", [Names]),
 
-	startAllSPs(0, (1 bsl M) - 1),
+	startAllSPs(0, twoM(M) - 1, M, MyID),
 	utils:log("Handler started successfully."),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
@@ -70,7 +70,7 @@ init({M, MyID, NextNodeID}) ->
 	Names = global:registered_names(),
   	io:format("Registered names (new handler): ~w~n", [Names]),
 
-	startAllSPs(0, (1 bsl M) - 1),
+	startAllSPs(0, twoM(M) - 1, M, MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
@@ -220,16 +220,22 @@ terminate(_Reason, _State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+twoM(M) -> 1 bsl M.
+
 distTo(ID, S) ->
 	utils:modDist(?m, ?myID, ID).
 isMyProcess(ID, S) ->
   distTo(ID, S) < distTo(?nextNodeID, S).
 
 %% init
-startAllSPs(_Start, _Stop) ->
-	true.
+startAllSPs(Start, Stop, M, HandlerID) when Stop =/= Start ->
 	%Start the SP
-	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
+	gen_server:start({global, ?STORAGEPROCNAME(STOP)}, storage, {M, Stop, HandlerID}, []),
+	startAllSPs(Start, (Stop - 1) rem twoM(M), HandlerID);
+
+startAllSPs(Start, Stop, HandlerID) when Stop == Start -> 
+	gen_server:start({global, ?STORAGEPROCNAME(STOP)}, storage, {M, Stop, HandlerID}, []),
+	done.
 
 %% backup_store
 updateMinKey(Key, S) ->
