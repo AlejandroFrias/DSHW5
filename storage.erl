@@ -29,8 +29,6 @@
 -define(myDict, S#state.myDict).
 -define(myHandlerID, S#state.myHandlerID).
 
--define(?TwoM, (1 bsl M))
-
 -record(state, {m, myID, myDict, myHandlerID}).
 
 
@@ -42,7 +40,7 @@
 twoM(M) -> 1 bsl M
 
 hash( Key, M ) ->
-    MaxProcID = 1 bsl M,
+    MaxProcID = twoM(M),
     % this erlang built-in hash function works on any erlang term (though in
     % this assignment we're restricted to strings).  More irritatingly, though,
     % the range (MaxProcID) is limited to 2^32.
