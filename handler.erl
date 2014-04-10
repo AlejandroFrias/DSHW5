@@ -109,7 +109,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 			                  myBackupSize = NewBackupSize,
 			                  minKey = NewMinKey,
 			                  maxKey = NewMaxKey} }
-	end.
+	end;
 
 %Getting a message from one of our SPs looking for the first key
 handle_cast({Pid, Ref, first_key}, S) ->
