@@ -38,7 +38,7 @@ end.
 %Take in a list of handler names
 %Return the midpoint as a name, and the next name since we need that too
 findWidestHandlerGap(Names, M) ->
-	TwoM = round(math:pow(2, M)), %Make it an int instead of a float
+	TwoM = 1 bsl M,
 	Nums = [handlerNameToNum(N) || N <- Names],
 	NumsExtended = Nums ++ [hd(Nums) + TwoM],
 	{_, First, Second} = maxConsecutiveDifference(NumsExtended, 0, 0, 0),

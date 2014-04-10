@@ -43,7 +43,7 @@ init({M, MyID}) ->
 	Names = global:registered_names(),
   	utils:log("Registered names (first handler): ~w~n", [Names]),
 
-	startAllSPs(0, math:pow(2, M) - 1),
+	startAllSPs(0, (1 bsl M) - 1),
 	utils:log("Handler started successfully."),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
@@ -56,7 +56,7 @@ init({M, MyID, NextNodeID}) ->
 	Names = global:registered_names(),
   	io:format("Registered names (new handler): ~w~n", [Names]),
 
-	startAllSPs(0, math:pow(2, M) - 1),
+	startAllSPs(0, (1 bsl M) - 1),
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
@@ -66,7 +66,7 @@ init({M, MyID, NextNodeID}) ->
 handle_call(getState, _, S) ->
 	{noreply, S}.
 
-handle_cast({Node, _}, S) ->
+handle_cast({_Node, _}, S) ->
 	{noreply, S};
 
 %Getting a message from one of our SPs looking for the first key
@@ -98,7 +98,7 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
 
 			{noreply, S}
-	end.
+	end;
 
 %Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, last_key}, S) ->
@@ -129,7 +129,7 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
 
 			{noreply, S}
-	end.
+	end;
 
 %Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, num_keys}, S) ->
@@ -156,14 +156,14 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
 			NextHandler = S#state.nextNodeID,
-			NewNumKey = S#state.myInProgressRefs + ComputationSoFar,
+			NewNumKeys = S#state.myInProgressRefs + ComputationSoFar,
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 			{noreply, S}
 	end.
 
 
-handle_info({Pid, Ref, chill}, S) ->
+handle_info({_Pid, _Ref, chill}, S) ->
 	{noreply, S}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -172,7 +172,7 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
     lal.
 
-startAllSPs(Start, Stop) ->
+startAllSPs(_Start, _Stop) ->
 	true.
 	%Start the SP
 	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),

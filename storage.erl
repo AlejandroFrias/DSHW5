@@ -10,7 +10,7 @@
 -behavior(gen_server).
 
 %% External exports
--export( [init/1, init/2] ).
+%-export( [init/1, init/2] ).
 
 %% gen_server callbacks
 -export([init/1, 
@@ -23,6 +23,9 @@
 -define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
 -define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
 
+
+-define(?TwoM, (1 bsl M))
+
 -record(state, {m, myID, myDict, myHandlerID}).
 
 
@@ -30,12 +33,19 @@
 %%% Utility Functions
 %%%============================================================================
 
+%Two to the M
+twoM(M) -> 1 bsl M
+
 hash( Key, M ) ->
     MaxProcID = 1 bsl M,
     % this erlang built-in hash function works on any erlang term (though in
     % this assignment we're restricted to strings).  More irritatingly, though,
     % the range (MaxProcID) is limited to 2^32.
     erlang:phash2( Key, MaxProcID ).
+
+%TO DO: MAKE THIS ACTUALLY FIND THE CLOSEST
+findClosestTo(_Dest, Me, M) ->
+	(Me + 1) rem twoM(M).
 
 %%%============================================================================
 %%% GenServer Calls/Casts
@@ -53,33 +63,59 @@ init( {M, MyID, MyHandlerID} ) ->
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
 
 
+handle_call(getState, _, S) ->
+	{noreply, S}.
+
+
 %%%%%%%%%% END ASYNCRHONOUS MESSAGES FROM OTHER STORAGE PROCESSES %%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%% MESSAGES FROM THE CONTROLLER %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) when
-      hash(Key) == MyID ->
+handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->
+	Dest = hash(Key, S#state.m),
+	case Dest == MyID of
+		true -> 
+			OldDict = S#state.myDict,
+			NewDict = dict:store(Key, Value, OldDict),
+			{noreply, S#state.{myDict = NewDict}};
+		false ->
+			Closest = findClosestTo(Dest, MyID, S#state.m),
+			gen_server:cast({global, ?HANDLERPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
+			{noreply, S}
+	end
     % deal with storing your own data
     ;
 
-handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->
+handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->changeme
     % pass the store request along
     ;
 
-handle_cast({Pid, Ref, retrieve, Key}, S = #state{myID = MyID, myDict = MyDict}) 
-  when hash(Key) == MyID ->
-    gen_server:cast(Pid, {Ref, retrieved, dict:fetch(Key, MyDict)}),
+handle_cast({Pid, Ref, retrieve, Key}, S = #state{myID = MyID, myDict = MyDict}) ->
+	case hash(Key, S#state.m) == MyID of
+		true -> storeit;
+		false -> forwardmessage
+	end,
+    %gen_server:cast(Pid, {Ref, retrieved, dict:fetch(Key, MyDict)}),
     {noreply, S};
 
-handle_cast({Pid, Ref, retrieve, Key, Value}, S = #state{myID = MyID}) ->
+handle_cast({Pid, Ref, retrieve, Key, Value}, S = #state{myID = MyID}) -> changeme
     % pass the store request along
     ;
 
-handle_cast() ->
+handle_cast({}, _S) -> changeme.
 
 
 
 
+
+handle_info({_Pid, _Ref, chill}, S) ->
+	{noreply, S}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+terminate(_Reason, _State) ->
+    lal.
 
 
     
