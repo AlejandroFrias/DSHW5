@@ -57,7 +57,8 @@ init({M, MyID}) ->
 	Names = global:registered_names(),
   	utils:log("Registered names (first handler): ~w~n", [Names]),
 
-	startAllSPs(0, twoM(M) - 1, M, MyID),
+	startAllSPs(MyID, twoM(M) - 1, M, MyID),
+
 	utils:log("Handler started successfully."),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
@@ -70,7 +71,8 @@ init({M, MyID, NextNodeID}) ->
 	Names = global:registered_names(),
   	io:format("Registered names (new handler): ~w~n", [Names]),
 
-	startAllSPs(0, twoM(M) - 1, M, MyID),
+	startAllSPs(MyID, NextNodeID - 1, M, MyID),
+
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
@@ -227,6 +229,9 @@ distTo(ID, S) ->
 isMyProcess(ID, S) ->
   distTo(ID, S) < distTo(?nextNodeID, S).
 
+%Two to the M
+twoM(M) -> 1 bsl M.
+
 %% init
 startAllSPs(Start, Stop, M, HandlerID) when Stop =/= Start ->
 	%Start the SP
@@ -253,3 +258,4 @@ updateMaxKey(Key, S) ->
 		false ->
 			?maxKey
 	end.
+
