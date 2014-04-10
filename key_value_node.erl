@@ -56,9 +56,17 @@ findWidestHandlerGap(Names, M) ->
 mainHelp(M, Name, Other) ->
 	%try 
     % Erlang networking boilerplate 
+    utils:log("Starting node with name ~w", [Name]),
+
     _ = os:cmd("epmd -daemon"),
     net_kernel:start([list_to_atom(Name), shortnames]),
-    net_kernel:connect_node(list_to_atom(Other)),
+
+    io:format("Is a list? ~w~n", [is_list(Other)]),
+
+    ConnectResult = net_kernel:connect_node(list_to_atom(Other)),
+
+    utils:log("Connecting to ~w, result is: ~w", [Other, ConnectResult]),
+    
     %Compute right place to start
     Names = global:registered_names(),
     io:format("Registered names: ~w~n", [Names]),
@@ -113,5 +121,5 @@ mainHelp(M, Name) ->
 
 %main([M | [Name | []]]]) -> 
 main([M | [Name | Other]]) when Other == [] -> mainHelp(M, Name);
-main([M | [Name | Other]]) -> mainHelp(M, Name, Other).
+main([M | [Name | [Other]]]) -> mainHelp(M, Name, Other).
 
