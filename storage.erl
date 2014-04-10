@@ -83,14 +83,13 @@ handle_cast({Pid, Ref, store, Key, Value}, S) ->
 	Dest = hash(Key, ?m),
 	case Dest == ?myID of
 		true -> 
-			utils:log("SP ~w received store message for me, storing it and notifying handler", [MyID])
+			utils:log("SP ~w received store message for me, storing it and notifying handler", [?myID]),
 			OldDict = ?myDict,
 			NewDict = dict:store(Key, Value, OldDict),
 			{noreply, S#state{myDict = NewDict}};
 		false ->
-			utils:log("SP ~w received store message for SP ~w, forwarding it along", [MyID, Closest]),
-
 			Closest = findClosestTo(Dest, S),
+			utils:log("SP ~w received store message for SP ~w, forwarding it along", [?myID, Closest]),
 			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
 			{noreply, S}
 	end;
