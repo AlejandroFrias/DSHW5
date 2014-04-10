@@ -226,7 +226,7 @@ isMyProcess(ID, S) ->
   distTo(ID, S) < distTo(?nextNodeID, S).
 
 %Two to the M
-twoM(M) -> 1 bsl M
+twoM(M) -> 1 bsl M.
 
 %% init
 startAllSPs(_Start, _Stop) ->
