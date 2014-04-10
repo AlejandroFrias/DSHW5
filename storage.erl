@@ -47,8 +47,13 @@ hash( Key, M ) ->
     erlang:phash2( Key, MaxProcID ).
 
 %TO DO: MAKE THIS ACTUALLY FIND THE CLOSEST
-findClosestTo(_Dest, Me, M) ->
-	(Me + 1) rem twoM(M).
+findClosestTo(Dest, S) ->
+  lists:last([(?myID + twoM(X)) rem twoM(?m) || 
+             X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]).
+
+distTo(ID, S) ->
+  utils:modDist(?m, ?myID, ID).
+
 
 %%%============================================================================
 %%% GenServer Calls/Casts
@@ -74,30 +79,31 @@ handle_call(getState, _, S) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%% MESSAGES FROM THE CONTROLLER %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->
+handle_cast({Pid, Ref, store, Key, Value}, S) ->
 	Dest = hash(Key, ?m),
-	case Dest == MyID of
+	case Dest == ?myID of
 		true -> 
 			utils:log("SP ~w received store message for me, storing it and notifying handler", [MyID])
 			OldDict = ?myDict,
 			NewDict = dict:store(Key, Value, OldDict),
 			{noreply, S#state{myDict = NewDict}};
 		false ->
-			Closest = findClosestTo(Dest, MyID, ?m),
 			utils:log("SP ~w received store message for SP ~w, forwarding it along", [MyID, Closest]),
+
+			Closest = findClosestTo(Dest, S),
 			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
 			{noreply, S}
 	end;
 
-handle_cast({Pid, Ref, retrieve, Key}, S = #state{myID = MyID, myDict = MyDict}) ->
-	case hash(Key, ?m) == MyID of
+handle_cast({Pid, Ref, retrieve, Key}, S) ->
+	case hash(Key, ?m) == ?myID of
 		true -> storeit;
 		false -> forwardmessage
 	end,
     %gen_server:cast(Pid, {Ref, retrieved, dict:fetch(Key, MyDict)}),
     {noreply, S};
 
-handle_cast({Pid, Ref, retrieve, Key, Value}, S = #state{myID = MyID}) -> changeme
+handle_cast({Pid, Ref, retrieve, Key, Value}, S) -> changeme
     % pass the store request along
     ;
 
