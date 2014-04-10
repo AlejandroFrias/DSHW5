@@ -113,9 +113,9 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 
 %Getting a message from one of our SPs looking for the first key
 handle_cast({Pid, Ref, first_key}, S) ->
-	NextHandler = S#state.nextNodeID,
-	MyFirstKey = S#state.minKey, 
-	OldInProgressRefs = S#state.myInProgressRefs,
+	NextHandler = ?nextNodeID,
+	MyFirstKey = ?minKey, 
+	OldInProgressRefs = ?myInProgressRefs,
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
@@ -125,7 +125,7 @@ handle_cast({Pid, Ref, first_key}, S) ->
 
 %Getting a message from another handler about first keys
 handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
-	InProgressRefs = S#state.myInProgressRefs,
+	InProgressRefs = ?myInProgressRefs,
 
 	case list:member(Ref, InProgressRefs) of
 		true -> 
@@ -135,8 +135,8 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
-			NextHandler = S#state.nextNodeID,
-			NewFirstKey = min(S#state.minKey, ComputationSoFar),
+			NextHandler = ?nextNodeID,
+			NewFirstKey = min(?minKey, ComputationSoFar),
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
 
 			{noreply, S}
@@ -144,9 +144,9 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 
 %Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, last_key}, S) ->
-	NextHandler = S#state.nextNodeID,
-	MyLastKey = S#state.maxKey, 
-	OldInProgressRefs = S#state.myInProgressRefs,
+	NextHandler = ?nextNodeID,
+	MyLastKey = ?maxKey, 
+	OldInProgressRefs = ?myInProgressRefs,
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
@@ -156,7 +156,7 @@ handle_cast({Pid, Ref, last_key}, S) ->
 
 %Getting a message from another handler about last keys
 handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
-	InProgressRefs = S#state.myInProgressRefs,
+	InProgressRefs = ?myInProgressRefs,
 
 	case list:member(Ref, InProgressRefs) of
 		true -> 
@@ -166,8 +166,8 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
-			NextHandler = S#state.nextNodeID,
-			NewLastKey = max(S#state.maxKey, ComputationSoFar),
+			NextHandler = ?nextNodeID,
+			NewLastKey = max(?maxKey, ComputationSoFar),
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
 
 			{noreply, S}
@@ -175,9 +175,9 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 
 %Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, num_keys}, S) ->
-	NextHandler = S#state.nextNodeID,
-	MyNumKeys = S#state.myBackupSize, 
-	OldInProgressRefs = S#state.myInProgressRefs,
+	NextHandler = ?nextNodeID,
+	MyNumKeys = ?myBackupSize, 
+	OldInProgressRefs = ?myInProgressRefs,
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
@@ -187,7 +187,7 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 
 %Getting a message from another handler about last keys
 handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
-	InProgressRefs = S#state.myInProgressRefs,
+	InProgressRefs = ?myInProgressRefs,
 
 	case list:member(Ref, InProgressRefs) of
 		true -> 
@@ -197,8 +197,8 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs 
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
-			NextHandler = S#state.nextNodeID,
-			NewNumKeys = S#state.myInProgressRefs + ComputationSoFar,
+			NextHandler = ?nextNodeID,
+			NewNumKeys = ?myInProgressRefs + ComputationSoFar,
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 			{noreply, S}
@@ -213,17 +213,25 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
     lal.
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% 								HELPER FUNCTIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+distTo(ID, S) ->
+	utils:modDist(?m, ?myID, ID).
+isMyProcess(ID, S) ->
+  distTo(ID, S) < distTo(?nextNodeID, S).
+
+%% init
 startAllSPs(_Start, _Stop) ->
 	true.
 	%Start the SP
 	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
 
-isMyProcess(ID, S) ->
-  distTo(ID, S) < distTo(S#state.nextNodeID, S).
-
-distTo(ID, S) ->
-	utils:modDist(S#state.m, S#state.myID, ID).
-
+%% backup_store
 updateMinKey(Key, S) ->
 	case Key < ?minKey of
 		true ->
