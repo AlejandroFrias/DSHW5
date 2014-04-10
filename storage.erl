@@ -48,10 +48,12 @@ hash( Key, M ) ->
 
 %TO DO: MAKE THIS ACTUALLY FIND THE CLOSEST
 findClosestTo(Dest, S) ->
-	(Me + 1) rem twoM(M).
+  lists:last([(?myID + twoM(X)) rem twoM(?m) || 
+             X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]).
 
 distTo(ID, S) ->
   utils:modDist(?m, ?myID, ID).
+
 
 %%%============================================================================
 %%% GenServer Calls/Casts
