@@ -24,6 +24,11 @@
 -define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
 
 
+-define(m, S#state.m).
+-define(myID, S#state.myID).
+-define(myDict, S#state.myDict).
+-define(myHandlerID, S#state.myHandlerID).
+
 -define(?TwoM, (1 bsl M))
 
 -record(state, {m, myID, myDict, myHandlerID}).
@@ -72,26 +77,20 @@ handle_call(getState, _, S) ->
 %%%%%%%%%%%%%%%%%%%%%% MESSAGES FROM THE CONTROLLER %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->
-	Dest = hash(Key, S#state.m),
+	Dest = hash(Key, ?m),
 	case Dest == MyID of
 		true -> 
-			OldDict = S#state.myDict,
+			OldDict = ?myDict,
 			NewDict = dict:store(Key, Value, OldDict),
-			{noreply, S#state.{myDict = NewDict}};
+			{noreply, S#state{myDict = NewDict}};
 		false ->
-			Closest = findClosestTo(Dest, MyID, S#state.m),
-			gen_server:cast({global, ?HANDLERPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
+			Closest = findClosestTo(Dest, MyID, ?m),
+			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
 			{noreply, S}
-	end
-    % deal with storing your own data
-    ;
-
-handle_cast({Pid, Ref, store, Key, Value}, S = #state{myID = MyID}) ->changeme
-    % pass the store request along
-    ;
+	end;
 
 handle_cast({Pid, Ref, retrieve, Key}, S = #state{myID = MyID, myDict = MyDict}) ->
-	case hash(Key, S#state.m) == MyID of
+	case hash(Key, ?m) == MyID of
 		true -> storeit;
 		false -> forwardmessage
 	end,
@@ -107,9 +106,13 @@ handle_cast({}, _S) -> changeme.
 
 
 
+%Receive store messages from outside world
+handle_info({Pid, Ref, store, Key, Value}, S) ->
+	gen_server:cast({global, ?STORAGEPROCNAME(?myID)}, {Pid, Ref, store, Key, Value}),
+	{noreply, S};
 
-handle_info({_Pid, _Ref, chill}, S) ->
-	{noreply, S}.
+handle_info({Pid, Ref, first_key}) ->
+	
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
