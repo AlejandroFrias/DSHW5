@@ -10,7 +10,7 @@
 -behavior(gen_server).
 
 %% External exports
--export([init/1]).
+%-export([init/1]).
 
 %% gen_server callbacks
 -export([init/1, 
@@ -32,19 +32,27 @@
 
 %Start up everything as the first node in a system
 %Start ID will always be 0
-init({M, MyID}) ->
+init({M, MyID, OriginProcess}) ->
+	%net_kernel:start([node(), shortnames]),
+	%ConnectResult = net_kernel:connect_node(OriginProcess),
+    %utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
+    timer:sleep(1000),
+
 	utils:log("Handler starting with node ID ~w and no next ID", [MyID]),
+	utils:log("My node name is ~w", [node()]),
 	Names = global:registered_names(),
-  	io:format("Registered names (first handler): ~w~n", [Names]),
+  	utils:log("Registered names (first handler): ~w~n", [Names]),
 
 	startAllSPs(0, math:pow(2, M) - 1),
+	utils:log("Handler started successfully."),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
-init({M, MyID, NextNodeID}) -> 
+init({M, MyID, NextNodeID, OriginProcess}) -> 
 	utils:log("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID]),
+	utils:log("My node name is ~w", [node()]),
 	Names = global:registered_names(),
   	io:format("Registered names (new handler): ~w~n", [Names]),
 
