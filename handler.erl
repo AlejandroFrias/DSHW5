@@ -22,6 +22,20 @@
 
 -define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
 -define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
+-define(KEY, 1).
+-define(VAL, 2).
+-define(ID, 3).
+
+-define(m, S#state.m).
+-define(myID, S#state.myID).
+-define(nextNodeID, S#state.nextNodeID).
+-define(myBackup, S#state.myBackup).
+-define(minKey, S#state.minKey).
+-define(maxKey, S#state.maxKey).
+-define(myBackupSize, S#state.myBackupSize).
+-define(myInProgressRefs, S#state.myInProgressRefs).
+-define(myAllDataAssembling, S#state.myAllDataAssembling).
+-define(myProcsWaitingFor, S#state.myProcsWaitingFor).
 
 -record(state, {m, myID, nextNodeID, myBackup, minKey, maxKey, myBackupSize,
 	       myInProgressRefs, myAllDataAssembling, myProcsWaitingFor}).
@@ -66,8 +80,36 @@ init({M, MyID, NextNodeID, OriginProcess}) ->
 handle_call(getState, _, S) ->
 	{noreply, S}.
 
-handle_cast({Node, _}, S) ->
-	{noreply, S}.
+% Receives a backup_store message. Should forward to next node if its from it's 
+% own storage process, or, if not, store in back up and tell outside world a 
+% confirmation of store
+handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
+	case isMyProcess(ProcessID, S) of
+		true ->
+			gen_server:cast({global, ?HANDLERPROCNAME(?nextNodeID)}, Msg),
+			{noreply, S};
+		false ->
+			case lists:keyfind(Key, ?KEY, ?myBackup) of
+				false ->
+					OldValue = no_value,
+					NewBackup = [{Key, Value, ProcessID} | ?myBackup],
+					NewBackupSize = ?myBackupSize + 1;
+				OldBackupData = {_Key, Val, _ID} ->
+					OldValue = Val,
+					NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
+					NewBackupSize = ?myBackupSize
+			end,
+			% Message the outside world that the value was stored
+			Pid ! {Ref, stored, OldValue},
+
+			% Store the value and update min, max, and number of keys
+			NewMinKey = updateMinKey(Key, S),
+			NewMaxKey = updateMaxKey(Key, S),
+			{noreply, S#state{myBackup = NewBackup,
+			                  myBackupSize = NewBackupSize,
+			                  minKey = NewMinKey,
+			                  maxKey = NewMaxKey} }
+	end.
 
 handle_info({Pid, Ref, chill}, S) ->
 	{noreply, S}.
@@ -82,4 +124,25 @@ startAllSPs(Start, Stop) ->
 	true.
 	%Start the SP
 	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
-	
+
+isMyProcess(ID, S) ->
+  distTo(ID, S) < distTo(S#state.nextNodeID, S).
+
+distTo(ID, S) ->
+	utils:modDist(S#state.m, S#state.myID, ID).
+
+updateMinKey(Key, S) ->
+	case Key < ?minKey of
+		true ->
+			Key;
+		false ->
+			?minKey
+	end.
+
+updateMaxKey(Key, S) ->
+	case Key > ?maxKey of
+		true ->
+			Key;
+		false ->
+			?maxKey
+	end.

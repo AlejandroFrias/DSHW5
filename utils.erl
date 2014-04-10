@@ -30,3 +30,21 @@ first_n_elements(N, List) ->
       List
   end.
 
+%Check if it's a handler or storage
+singleHandlerFilter(Name) ->
+  io:format("name is ~w~n", [Name]),
+  NameList = atom_to_list(Name),
+  SubName = lists:sublist(NameList, 7),
+  io:format("subname is ~w~n", [list_to_atom(SubName)]),
+  SubName == "handler".
+
+%Parses the number out of a handler name
+handlerNameToNum(Name) ->
+  NameList = atom_to_list(Name),
+  Number = lists:sublist(NameList, 8, 42),
+  list_to_integer(Number).
+
+% returns the distance between two processes when there are 2^M processes
+modDist(M, A, B) ->
+  (A - B) rem M.
+
