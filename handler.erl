@@ -46,7 +46,7 @@
 
 %Start up everything as the first node in a system
 %Start ID will always be 0
-init({M, MyID, OriginProcess}) ->
+init({M, MyID}) ->
 	%net_kernel:start([node(), shortnames]),
 	%ConnectResult = net_kernel:connect_node(OriginProcess),
     %utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
@@ -57,20 +57,20 @@ init({M, MyID, OriginProcess}) ->
 	Names = global:registered_names(),
   	utils:log("Registered names (first handler): ~w~n", [Names]),
 
-	startAllSPs(0, math:pow(2, M) - 1),
+	startAllSPs(0, (1 bsl M) - 1),
 	utils:log("Handler started successfully."),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
-init({M, MyID, NextNodeID, OriginProcess}) -> 
+init({M, MyID, NextNodeID}) -> 
 	utils:log("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID]),
 	utils:log("My node name is ~w", [node()]),
 	Names = global:registered_names(),
   	io:format("Registered names (new handler): ~w~n", [Names]),
 
-	startAllSPs(0, math:pow(2, M) - 1),
+	startAllSPs(0, (1 bsl M) - 1),
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
@@ -111,7 +111,100 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 			                  maxKey = NewMaxKey} }
 	end.
 
-handle_info({Pid, Ref, chill}, S) ->
+%Getting a message from one of our SPs looking for the first key
+handle_cast({Pid, Ref, first_key}, S) ->
+	NextHandler = S#state.nextNodeID,
+	MyFirstKey = S#state.minKey, 
+	OldInProgressRefs = S#state.myInProgressRefs,
+
+	NewInProgressRefs = [Ref | OldInProgressRefs],
+
+	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, MyFirstKey}),
+
+	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+
+%Getting a message from another handler about first keys
+handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
+	InProgressRefs = S#state.myInProgressRefs,
+
+	case list:member(Ref, InProgressRefs) of
+		true -> 
+			Pid ! {Ref, result, ComputationSoFar},
+
+			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
+
+			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+		false ->
+			NextHandler = S#state.nextNodeID,
+			NewFirstKey = min(S#state.minKey, ComputationSoFar),
+			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
+
+			{noreply, S}
+	end;
+
+%Getting a message from one of our SPs looking for the last key
+handle_cast({Pid, Ref, last_key}, S) ->
+	NextHandler = S#state.nextNodeID,
+	MyLastKey = S#state.maxKey, 
+	OldInProgressRefs = S#state.myInProgressRefs,
+
+	NewInProgressRefs = [Ref | OldInProgressRefs],
+
+	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, MyLastKey}),
+
+	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+
+%Getting a message from another handler about last keys
+handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
+	InProgressRefs = S#state.myInProgressRefs,
+
+	case list:member(Ref, InProgressRefs) of
+		true -> 
+			Pid ! {Ref, result, ComputationSoFar},
+
+			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
+
+			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+		false ->
+			NextHandler = S#state.nextNodeID,
+			NewLastKey = max(S#state.maxKey, ComputationSoFar),
+			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
+
+			{noreply, S}
+	end;
+
+%Getting a message from one of our SPs looking for the last key
+handle_cast({Pid, Ref, num_keys}, S) ->
+	NextHandler = S#state.nextNodeID,
+	MyNumKeys = S#state.myBackupSize, 
+	OldInProgressRefs = S#state.myInProgressRefs,
+
+	NewInProgressRefs = [Ref | OldInProgressRefs],
+
+	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
+
+	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+
+%Getting a message from another handler about last keys
+handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
+	InProgressRefs = S#state.myInProgressRefs,
+
+	case list:member(Ref, InProgressRefs) of
+		true -> 
+			Pid ! {Ref, result, ComputationSoFar},
+
+			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
+
+			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+		false ->
+			NextHandler = S#state.nextNodeID,
+			NewNumKeys = S#state.myInProgressRefs + ComputationSoFar,
+			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
+
+			{noreply, S}
+	end.
+
+handle_info({_Pid, _Ref, chill}, S) ->
 	{noreply, S}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -120,7 +213,7 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
     lal.
 
-startAllSPs(Start, Stop) ->
+startAllSPs(_Start, _Stop) ->
 	true.
 	%Start the SP
 	%gen_server:start({global, ?PROCNAME}, philosopher, {NodesToConnectTo}, []),
