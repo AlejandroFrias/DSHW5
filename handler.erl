@@ -222,6 +222,7 @@ terminate(_Reason, _State) ->
 
 distTo(ID, S) ->
 	utils:modDist(?m, ?myID, ID).
+	
 isMyProcess(ID, S) ->
   distTo(ID, S) < distTo(?nextNodeID, S).
 

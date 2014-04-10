@@ -6,7 +6,7 @@
 
 -module (utils).
 
--export ([timestamp/0, log/1, log/2, first_n_elements/2]).
+-export ([timestamp/0, log/1, log/2, first_n_elements/2, isHandler/1, getID/1, modDist/3]).
 
 timestamp() ->
   {A, B, Milli} = now(),
@@ -31,7 +31,7 @@ first_n_elements(N, List) ->
   end.
 
 %Check if it's a handler or storage
-singleHandlerFilter(Name) ->
+isHandler(Name) ->
   io:format("name is ~w~n", [Name]),
   NameList = atom_to_list(Name),
   SubName = lists:sublist(NameList, 7),
@@ -39,7 +39,7 @@ singleHandlerFilter(Name) ->
   SubName == "handler".
 
 %Parses the number out of a handler name
-handlerNameToNum(Name) ->
+getID(Name) ->
   NameList = atom_to_list(Name),
   Number = lists:sublist(NameList, 8, 42),
   list_to_integer(Number).
