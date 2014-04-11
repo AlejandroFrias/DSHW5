@@ -98,6 +98,7 @@ init({M, MyID, NextNodeID}) ->
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
+	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID)
 	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID - 1, ?m)],
 	terminateProcs(ProcsToTerminate),
 	{reply, done, S};
@@ -106,6 +107,7 @@ handle_call({joining_front, NodeID}, _From, S) ->
 % A new node is joining behind this node. Need to give it all the data for start
 % up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From, S) ->
+	utils:hlog("New node joining behind me at ~p", [NodeID], ?myID)
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
   {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup}};
 
