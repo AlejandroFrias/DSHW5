@@ -14,7 +14,8 @@
           getID/1,
           modDist/3,
           log2/1,
-          logB/2]).
+          logB/2,
+          pow2/1]).
 
 timestamp() ->
   {A, B, Milli} = now(),
