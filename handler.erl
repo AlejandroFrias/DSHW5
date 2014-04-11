@@ -92,7 +92,7 @@ handle_call({joining_front, NodeID}, _From, S) ->
 % up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From, S) ->
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
-  {reply, ?myBackup, S#state{myBackup = NewBackup}};
+  {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup}};
 
 
 handle_call(Msg, _From, S) ->
