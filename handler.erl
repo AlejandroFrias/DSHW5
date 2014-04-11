@@ -36,7 +36,7 @@
 -define(myProcsWaitingFor, S#state.myProcsWaitingFor).
 
 -record(state, {m, myID, nextNodeID, myBackup, minKey, maxKey, myBackupSize,
-	       myInProgressRefs, myAllDataAssembling, myProcsWaitingFor}).
+	       myInProgressRefs}).
 %% myInProgressRefs is a list of refs for messages for *key computations I started
 %  myAllDataAssembling - when we pull all data from nodes, we need a place to keep it while we get it all.
 %  myProcsWaitingFor - the number of processes that still haven't sent us their data. 
@@ -53,26 +53,32 @@ init({M, MyID}) ->
 	utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
 	io:format("TEST2"),
 	utils:hlog("My node name is ~w", [node()], MyID),
-	Names = global:registered_names(),
-  	%utils:hlog("Registered names (first handler): ~w~n", [Names], MyID),
-
-	startAllSPs(MyID, utils:pow2(M) - 1, M, MyID),
-
+	% Start all the processes
+	startAllSPs(MyID, utils:pow2(M) - 1, M, MyID, []),
 	utils:hlog("Handler started successfully.", MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
-		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}; %Fix these keys
+		myInProgressRefs = []}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
 init({M, MyID, NextNodeID}) -> 
 	utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
 	utils:hlog("My node name is ~w", [node()], MyID),
-	Names = global:registered_names(),
+	%Names = global:registered_names(),
   	%io:format("Registered names (new handler): ~w~n", [Names]),
-	startAllSPs(MyID, NextNodeID - 1, M, MyID),
+
+	startAllSPs(MyID, NextNodeID - 1, M, MyID, []),
+
+
+  	% BackupData = gen_server:call({global, ?HANDLERPROCNAME(NextNodeID)}, {joining_behind, MyID}),
+
+  	% gen_server:call({global, })
+
+
+
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
-		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
+		myInProgressRefs = []}}. %Fix these keys
 
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
@@ -261,14 +267,24 @@ isMyProcess(ID, S) ->
   (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
 %% init
-startAllSPs(Stop, Stop, M, HandlerID) -> 
-	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID}, []),
+startAllSPs(Stop, Stop, M, HandlerID, Data) -> 
+	SPData = dataToDict(Data, Stop),
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
 	done;
-startAllSPs(Start, Stop, M, HandlerID) ->
-	%Start the SP
-	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID}, []),
-	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID).
+startAllSPs(Start, Stop, M, HandlerID, Data) ->
+	SPData = dataToDict(Data, Stop),
 
+	%Start the SP
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
+	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID, Data).
+
+
+dataToDict(Data, ID) ->
+	IDData = [{Key, Value} || {Key, Value, ID} <- Data], %lists:keytake(ID, ?ID, Data),
+	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
+	dict:from_list(IDData).
+
+stripID({Key, Value, _ID}) -> {Key, Value}.
 
 %% backup_store
 updateMinKey(Key, S) ->
