@@ -2,3 +2,4 @@ erlc handler.erl
 erlc key_value_node.erl
 erlc storage.erl
 erlc utils.erl
+erlc t.erl

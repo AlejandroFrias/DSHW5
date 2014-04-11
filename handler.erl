@@ -125,6 +125,8 @@ handle_cast({Pid, Ref, first_key}, S) ->
 	MyFirstKey = ?minKey, 
 	OldInProgressRefs = ?myInProgressRefs,
 
+	utils:hlog("Received message from my SP looking for first_key.", ?myID),
+
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
 	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, MyFirstKey}),
@@ -135,14 +137,17 @@ handle_cast({Pid, Ref, first_key}, S) ->
 handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
 	InProgressRefs = ?myInProgressRefs,
 
-	case list:member(Ref, InProgressRefs) of
+	case lists:member(Ref, InProgressRefs) of
 		true -> 
+			utils:hlog("Finished first_key computation. Result was: ~p", [ComputationSoFar], ?myID),
 			Pid ! {Ref, result, ComputationSoFar},
 
 			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
+			utils:hlog("Got first_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
+
 			NextHandler = ?nextNodeID,
 			NewFirstKey = min(?minKey, ComputationSoFar),
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
@@ -156,6 +161,8 @@ handle_cast({Pid, Ref, last_key}, S) ->
 	MyLastKey = ?maxKey, 
 	OldInProgressRefs = ?myInProgressRefs,
 
+	utils:hlog("Received message from my SP looking for last_key.", ?myID),
+
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
 	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, MyLastKey}),
@@ -166,14 +173,18 @@ handle_cast({Pid, Ref, last_key}, S) ->
 handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
 	InProgressRefs = ?myInProgressRefs,
 
-	case list:member(Ref, InProgressRefs) of
+	case lists:member(Ref, InProgressRefs) of
 		true -> 
+			utils:hlog("Finished last_key computation. Result was: ~p", [ComputationSoFar], ?myID),
+
 			Pid ! {Ref, result, ComputationSoFar},
 
 			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
+			utils:hlog("Got last_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
+
 			NextHandler = ?nextNodeID,
 			NewLastKey = max(?maxKey, ComputationSoFar),
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
@@ -187,6 +198,8 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 	MyNumKeys = ?myBackupSize, 
 	OldInProgressRefs = ?myInProgressRefs,
 
+	utils:hlog("Received message from my SP looking for num_keys.", ?myID),
+
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
 	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
@@ -197,14 +210,18 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
 	InProgressRefs = ?myInProgressRefs,
 
-	case list:member(Ref, InProgressRefs) of
+	case lists:member(Ref, InProgressRefs) of
 		true -> 
+			utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
+
 			Pid ! {Ref, result, ComputationSoFar},
 
 			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
+			utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
+
 			NextHandler = ?nextNodeID,
 			NewNumKeys = ?myInProgressRefs + ComputationSoFar,
 			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
@@ -249,7 +266,7 @@ startAllSPs(Start, Stop, M, HandlerID) when Stop == Start ->
 
 %% backup_store
 updateMinKey(Key, S) ->
-	case Key < ?minKey of
+	case (Key < ?minKey) or (?myBackupSize == 0) of
 		true ->
 			Key;
 		false ->
@@ -257,7 +274,7 @@ updateMinKey(Key, S) ->
 	end.
 
 updateMaxKey(Key, S) ->
-	case Key > ?maxKey of
+	case (Key > ?maxKey) or (?myBackupSize == 0) of
 		true ->
 			Key;
 		false ->

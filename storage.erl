@@ -68,7 +68,7 @@ distTo(ID, S) ->
 %%%============================================================================
 
 init( {M, MyID, MyHandlerID} ) ->
-    utils:log( "Starting storage process ~w on node ~w.", [MyID, MyHandlerID]),
+    utils:slog( "Starting on node ~w.", [MyHandlerID], MyID),
     MyDict = dict:new(),
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
@@ -124,7 +124,22 @@ handle_info({Pid, Ref, store, Key, Value}, S) ->
 	{noreply, S};
 
 handle_info({Pid, Ref, first_key}, S) ->
+	utils:slog("Received first_key request from outside world, forwarding to handler.", ?myID),
 	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, {Pid, Ref, first_key}),
+	{noreply, S};
+
+handle_info({Pid, Ref, last_key}, S) ->
+	utils:slog("Received last_key request from outside world, forwarding to handler.", ?myID),
+	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, {Pid, Ref, last_key}),
+	{noreply, S};
+
+handle_info({Pid, Ref, num_keys}, S) ->
+	utils:slog("Received num_keys request from outside world, forwarding to handler.", ?myID),
+	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, {Pid, Ref, num_keys}),
+	{noreply, S};
+
+handle_info(_, S) ->
+	utils:slog("Received unexpected message! OHHHH NOOOOOO", ?myID),
 	{noreply, S}.
 
 code_change(_OldVsn, State, _Extra) ->

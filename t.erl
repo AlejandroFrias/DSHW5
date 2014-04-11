@@ -1,6 +1,6 @@
 -module (t).
 
--export([init/0, connect/1, getPid/1, store/3, retrieve/2]).
+-export([init/0, connect/1, getPid/1, store/3, retrieve/2, firstKey/1, lastKey/1, numKeys/1]).
 
 -define(STORAGEPROCNAME (Num), list_to_atom("storage" ++ integer_to_list(Num))).
 
@@ -45,4 +45,42 @@ retrieve(Key, ProcID) ->
     after
       ?TIMEOUT ->
         utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) 
+  end.
+
+  % sends store message and waits for response
+firstKey(ProcID) ->
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, first_key},
+  receive
+    {Ref, result, Result} ->
+      utils:log("First key: ~p.", [Result])
+    after
+      ?TIMEOUT ->
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
+  end.
+
+lastKey(ProcID) ->
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, last_key},
+  receive
+    {Ref, result, Result} ->
+      utils:log("Last key: ~p.", [Result])
+    after
+      ?TIMEOUT ->
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
+  end.
+
+
+numKeys(ProcID) ->
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, num_keys},
+  receive
+    {Ref, result, Result} ->
+      utils:log("Num keys: ~p.", [Result])
+    after
+      ?TIMEOUT ->
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
   end.
