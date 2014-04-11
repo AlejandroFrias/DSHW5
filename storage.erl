@@ -51,7 +51,7 @@ hash( Key, M ) ->
 findClosestTo(Dest, S) ->
   Dist = distTo(Dest, S),
   Chord = trunc(utils:log2(Dist)),
-  ?myID + utils:pow2(Chord).
+  (?myID + utils:pow2(Chord)) rem utils:pow2(?m).
 
 distTo(ID, S) ->
   utils:modDist(?m, ?myID, ID).
@@ -86,13 +86,17 @@ handle_cast({Pid, Ref, store, Key, Value}, S) ->
 	Dest = hash(Key, ?m),
 	case Dest == ?myID of
 		true -> 
-			utils:log("SP ~w received store message for me, storing it and notifying handler", [?myID]),
+			utils:slog("Received store message for me, storing it and notifying handler", ?myID),
 			OldDict = ?myDict,
 			NewDict = dict:store(Key, Value, OldDict),
+
+			%Notify our handler about it
+			gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, {Pid, Ref, backup_store, Key, Value, ?myID}),
+
 			{noreply, S#state{myDict = NewDict}};
 		false ->
 			Closest = findClosestTo(Dest, S),
-			utils:log("SP ~w received store message for SP ~w, forwarding it to ~w", [?myID, Dest, Closest]),
+			utils:slog("Received store message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
 			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
 			{noreply, S}
 	end;

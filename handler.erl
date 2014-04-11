@@ -51,30 +51,31 @@ init({M, MyID}) ->
 	%ConnectResult = net_kernel:connect_node(OriginProcess),
     %utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
     timer:sleep(1000),
-
-	utils:log("Handler starting with node ID ~w and no next ID", [MyID]),
-	utils:log("My node name is ~w", [node()]),
+    io:format("TEST"),
+	utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
+	io:format("TEST2"),
+	utils:hlog("My node name is ~w", [node()], MyID),
 	Names = global:registered_names(),
-  	utils:log("Registered names (first handler): ~w~n", [Names]),
+  	%utils:hlog("Registered names (first handler): ~w~n", [Names], MyID),
 
 	startAllSPs(MyID, twoM(M) - 1, M, MyID),
 
-	utils:log("Handler started successfully."),
+	utils:hlog("Handler started successfully.", MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
-		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
+		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
 init({M, MyID, NextNodeID}) -> 
-	utils:log("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID]),
-	utils:log("My node name is ~w", [node()]),
+	utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
+	utils:hlog("My node name is ~w", [node()], MyID),
 	Names = global:registered_names(),
-  	io:format("Registered names (new handler): ~w~n", [Names]),
+  	%io:format("Registered names (new handler): ~w~n", [Names]),
 
 	startAllSPs(MyID, NextNodeID - 1, M, MyID),
 
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
-		myBackup = dict:new(), minKey = [], maxKey = [], myBackupSize = 0,
+		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
 
 
@@ -88,12 +89,12 @@ handle_call(getState, _, S) ->
 handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 	case isMyProcess(ProcessID, S) of
 		true ->
-			utils:log("Received a backup_store request from my process: ~p", [ProcessID]),
-			utils:log("Forwarding the message to the next node (~p) to backup.", [?nextNodeID]),
+			utils:hlog("Received a backup_store request from my process: ~p", [ProcessID], ?myID),
+			utils:hlog("Forwarding the message to the next node (~p) to backup.", [?nextNodeID], ?myID),
 			gen_server:cast({global, ?HANDLERPROCNAME(?nextNodeID)}, Msg),
 			{noreply, S};
 		false ->
-			utils:log("Received a backup_store request from my neighboring node."),
+			utils:hlog("Received a backup_store request to be stored.", ?myID),
 			case lists:keyfind(Key, ?KEY, ?myBackup) of
 				false ->
 					OldValue = no_value,
@@ -104,8 +105,8 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 					NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
 					NewBackupSize = ?myBackupSize
 			end,
-			utils:log("Stored ~p, old value was ~p.", [Value, OldValue]),
-			utils:log("Sending stored confirmation to ~p", [Pid]),
+			utils:hlog("Stored ~p, old value was ~p.", [Value, OldValue], ?myID),
+			utils:hlog("Sending stored confirmation to ~p", [Pid], ?myID),
 			% Message the outside world that the value was stored
 			Pid ! {Ref, stored, OldValue},
 
@@ -231,7 +232,7 @@ distTo(ID, S) ->
 	utils:modDist(?m, ?myID, ID).
 	
 isMyProcess(ID, S) ->
-  distTo(ID, S) < distTo(?nextNodeID, S).
+  (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
 %Two to the M
 twoM(M) -> 1 bsl M.
