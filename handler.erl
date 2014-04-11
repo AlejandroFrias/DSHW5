@@ -69,11 +69,19 @@ init({M, MyID, NextNodeID}) ->
 
   	%Tell the previous guy stop his nodes
   	Names = global:registered_names(),
+  	io:format("HERE"),
   	HandlerIDs = [utils:getID(Name) || Name <- Names, utils:isHandler(Name)],
+  	io:format("aHERE"),
   	SortedIDs = lists:sort(HandlerIDs),
+  	io:format("bHERE~n"),
+  	io:format("SortedIDs: ~w~n", [SortedIDs]),
   	MyIDIndex = string:str(SortedIDs, MyID),
-  	PrevHandlerIndex = ((MyIDIndex - 1) rem length(SortedIDs)) + 1 %Account for lousy erlang indexing from 1
+  	io:format("cHERE"),
+  	PrevHandlerIndex = ((MyIDIndex - 1) rem length(SortedIDs)) + 1, %Account for lousy erlang indexing from 1
+  	io:format("dHERE"),
   	PrevHandlerID = lists:nth(PrevHandlerIndex, SortedIDs),
+
+  	io:format("eHERE"),
 
   	gen_server:call({global, utils:hname(PrevHandlerID)}, {joining_front, MyID}),
 
@@ -291,7 +299,7 @@ startAllSPs(Start, Stop, M, HandlerID, Data) ->
 
 dataToDict(Data, ID) ->
 	IDData = [{Key, Value} || {Key, Value, ThisID} <- Data, ThisID == ID], %lists:keytake(ID, ?ID, Data),
-	Rest = [Datum || Datum = {Key, Value, RestID} <- Data, RestID =/= ID],
+	Rest = [Datum || Datum = {_Key, _Value, RestID} <- Data, RestID =/= ID],
 	 %lists:keytake(ID, ?ID, Data),
 	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
 	{dict:from_list(IDData), Rest}.

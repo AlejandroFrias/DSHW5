@@ -59,12 +59,12 @@ main([M, Name, Other]) ->
   
   %Compute right place to start
   Names = global:registered_names(),
-  utils:log("Registered names: ~w", [Names]),
+  %utils:log("Registered names: ~w", [Names]),
   HandlerNames = handlerFilter(Names),
   utils:log("Finding where we should go among handlers ~w", [HandlerNames]),
   {NewHandlerID, NextHandlerID} = findWidestHandlerGap(HandlerNames, Minty),
 
 	%Start the SH
-	utils:log("Staring storage handler with ID ~w", [NewHandlerID]),
+	utils:log("Starting storage handler with ID ~w", [NewHandlerID]),
 	gen_server:start({global, utils:hname(NewHandlerID)}, handler, {Minty, NewHandlerID, NextHandlerID}, []).
 
