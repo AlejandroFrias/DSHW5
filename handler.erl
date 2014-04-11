@@ -61,29 +61,16 @@ init({M, MyID}) ->
 		myInProgressRefs = []}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
-init({M, MyID, NextNodeID}) -> 
+init({M, PrevNodeID, MyID, NextNodeID}) -> 
 	utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
 	utils:hlog("My node name is ~w", [node()], MyID),
 	%
   	%io:format("Registered names (new handler): ~w~n", [Names]),
 
   	%Tell the previous guy stop his nodes
-  	Names = global:registered_names(),
-  	io:format("HERE"),
-  	HandlerIDs = [utils:getID(Name) || Name <- Names, utils:isHandler(Name)],
-  	io:format("aHERE"),
-  	SortedIDs = lists:sort(HandlerIDs),
-  	io:format("bHERE~n"),
-  	io:format("SortedIDs: ~w~n", [SortedIDs]),
-  	MyIDIndex = string:str(SortedIDs, MyID),
-  	io:format("cHERE"),
-  	PrevHandlerIndex = ((MyIDIndex - 1) rem length(SortedIDs)) + 1, %Account for lousy erlang indexing from 1
-  	io:format("dHERE"),
-  	PrevHandlerID = lists:nth(PrevHandlerIndex, SortedIDs),
+  	gen_server:call({global, utils:hname(PrevNodeID)}, {joining_front, MyID}),
 
-  	io:format("eHERE"),
-
-  	gen_server:call({global, utils:hname(PrevHandlerID)}, {joining_front, MyID}),
+  	io:format("fHERE"),
 
   	%Get the data from our next node and then spin up instances
   	{NextBackupData, MinKey, MaxKey} = gen_server:call({global, utils:hname(NextNodeID)}, {joining_behind, MyID}),
@@ -98,7 +85,7 @@ init({M, MyID, NextNodeID}) ->
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
-	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID)
+	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
 	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID - 1, ?m)],
 	terminateProcs(ProcsToTerminate),
 	{reply, done, S};
@@ -107,7 +94,7 @@ handle_call({joining_front, NodeID}, _From, S) ->
 % A new node is joining behind this node. Need to give it all the data for start
 % up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From, S) ->
-	utils:hlog("New node joining behind me at ~p", [NodeID], ?myID)
+	utils:hlog("New node joining behind me at ~p", [NodeID], ?myID),
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
   {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup}};
 

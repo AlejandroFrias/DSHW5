@@ -21,10 +21,11 @@ end.
 findWidestHandlerGap(Names, M) ->
 	TwoM = 1 bsl M,
 	Nums = [utils:getID(N) || N <- Names],
-	NumsExtended = Nums ++ [hd(Nums) + TwoM],
+	SortedNums = lists:sort(Nums),
+	NumsExtended = SortedNums ++ [hd(SortedNums) + TwoM],
 	{_, First, Second} = maxConsecutiveDifference(NumsExtended, 0, 0, 0),
 	%We mod by the range to ensure that we get values within the range, so not like past 1024. Good comments guys
-	{(First + ((Second - First) div 2)) rem TwoM, Second rem TwoM}.
+	{First rem TwoM, (First + ((Second - First) div 2)) rem TwoM, Second rem TwoM}.
 
 
 
@@ -62,9 +63,9 @@ main([M, Name, Other]) ->
   %utils:log("Registered names: ~w", [Names]),
   HandlerNames = handlerFilter(Names),
   utils:log("Finding where we should go among handlers ~w", [HandlerNames]),
-  {NewHandlerID, NextHandlerID} = findWidestHandlerGap(HandlerNames, Minty),
+  {PrevHandlerID, NewHandlerID, NextHandlerID} = findWidestHandlerGap(HandlerNames, Minty),
 
 	%Start the SH
 	utils:log("Starting storage handler with ID ~w", [NewHandlerID]),
-	gen_server:start({global, utils:hname(NewHandlerID)}, handler, {Minty, NewHandlerID, NextHandlerID}, []).
+	gen_server:start({global, utils:hname(NewHandlerID)}, handler, {Minty, PrevHandlerID, NewHandlerID, NextHandlerID}, []).
 
