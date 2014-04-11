@@ -86,7 +86,7 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
 % for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
 	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
-	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID - 1, ?m)],
+	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, utils:modDec(?nextNodeID), ?m)],
 	utils:hlog("About to terminate processes: ~p", [ProcsToTerminate], ?myID),
 	terminateProcs(ProcsToTerminate),
 	{reply, done, S};
