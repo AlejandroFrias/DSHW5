@@ -55,8 +55,8 @@ getID(Name) ->
 % returns the distance between two numbers, A and B, when there are 2^M numbers 
 % and it wraps around. Finds the distance moving in the positive direction only.
 modDist(M, A, B) ->
-  Dist = (A - B) rem pow2(M), 
-  (Dist + pow2(M))rem pow2(M).
+  Dist = (B - A) rem pow2(M), 
+  (Dist + pow2(M)) rem pow2(M).
 
 pow2(M) ->
   1 bsl M.
