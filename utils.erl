@@ -6,6 +6,10 @@
 
 -module (utils).
 
+-define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
+
+-define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
+
 -export ([timestamp/0,
           log/1,
           log/2,
@@ -15,7 +19,11 @@
           modDist/3,
           log2/1,
           logB/2,
-          pow2/1]).
+          pow2/1,
+          slog/2,
+          slog/3,
+          hlog/2,
+          hlog/3]).
 
 timestamp() ->
   {A, B, Milli} = now(),
@@ -29,6 +37,23 @@ log(Message) ->
 log(Message, Format) ->
   S = io_lib:format(Message, Format),
   log(S).
+
+slog(Message, ProcNum) -> 
+  S = io_lib:format(" (~p) " ++ Message, ?STORAGEPROCNAME(ProcNum)),
+  log(S).
+
+slog(Message, Format, ProcNum) ->
+  S = io_lib:format(Message, Format),
+  slog(S).
+
+hlog(Message, ProcNum) -> 
+  S = io_lib:format(" (~p) " ++ Message, ?HANDLERPROCNAME(ProcNum)),
+  log(S).
+
+hlog(Message, Format, ProcNum) ->
+  S = io_lib:format(Message, Format),
+  hlog(S).
+
 
 first_n_elements(N, List) ->
   case length(List) > N of
