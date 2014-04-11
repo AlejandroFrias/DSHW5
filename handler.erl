@@ -83,9 +83,11 @@ init({M, MyID, NextNodeID}) ->
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
-	ProcsToTerminate = [],
+	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID - 1, ?m)],
+	terminateProcs(ProcsToTerminate),
 	{reply, done, S};
-	
+
+
 % A new node is joining behind this node. Need to give it all the data for start
 % up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From, S) ->
@@ -280,11 +282,19 @@ startAllSPs(Start, Stop, M, HandlerID, Data) ->
 
 
 dataToDict(Data, ID) ->
-	IDData = [{Key, Value} || {Key, Value, ID} <- Data], %lists:keytake(ID, ?ID, Data),
+	IDData = [{Key, Value} || {Key, Value, ThisID} <- Data, ThisID == ID], %lists:keytake(ID, ?ID, Data),
 	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
 	dict:from_list(IDData).
 
 stripID({Key, Value, _ID}) -> {Key, Value}.
+
+
+
+terminateProcs([]) ->
+	done;
+terminateProcs([Proc | Procs]) ->
+	gen_server:call(Proc, terminate),
+	terminateProcs(Procs).
 
 %% backup_store
 updateMinKey(Key, S) ->
