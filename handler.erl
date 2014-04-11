@@ -20,8 +20,6 @@
 	  code_change/3, 
 	  terminate/2]).
 
--define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
--define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
 -define(KEY, 1).
 -define(VAL, 2).
 -define(ID, 3).
@@ -58,7 +56,7 @@ init({M, MyID}) ->
 	Names = global:registered_names(),
   	%utils:hlog("Registered names (first handler): ~w~n", [Names], MyID),
 
-	startAllSPs(MyID, twoM(M) - 1, M, MyID),
+	startAllSPs(MyID, utils:pow2(M) - 1, M, MyID),
 
 	utils:hlog("Handler started successfully.", MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
@@ -71,16 +69,26 @@ init({M, MyID, NextNodeID}) ->
 	utils:hlog("My node name is ~w", [node()], MyID),
 	Names = global:registered_names(),
   	%io:format("Registered names (new handler): ~w~n", [Names]),
-
 	startAllSPs(MyID, NextNodeID - 1, M, MyID),
-
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
 		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
 		myInProgressRefs = [], myAllDataAssembling = dict:new(), myProcsWaitingFor = 0}}. %Fix these keys
 
+% A new node is joining in front of this node. Need to terminate processes
+% for the transfer.
+handle_call({joining_front, NodeID}, _From, S) ->
+	ProcsToTerminate = [],
+	{reply, done, S};
+	
+% A new node is joining behind this node. Need to give it all the data for start
+% up and back up and then delete the backup data we no longer need.
+handle_call({joining_behind, NodeID}, _From, S) ->
+  NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
+  {reply, ?myBackup, S#state{myBackup = NewBackup}};
 
 
-handle_call(getState, _, S) ->
+handle_call(Msg, _From, S) ->
+  utils:slog("UH OH! We don't support msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
 
 % Receives a backup_store message. Should forward to next node if its from it's 
@@ -91,7 +99,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 		true ->
 			utils:hlog("Received a backup_store request from my process: ~p", [ProcessID], ?myID),
 			utils:hlog("Forwarding the message to the next node (~p) to backup.", [?nextNodeID], ?myID),
-			gen_server:cast({global, ?HANDLERPROCNAME(?nextNodeID)}, Msg),
+			gen_server:cast({global, utils:hname(?nextNodeID)}, Msg),
 			{noreply, S};
 		false ->
 			utils:hlog("Received a backup_store request to be stored.", ?myID),
@@ -129,7 +137,7 @@ handle_cast({Pid, Ref, first_key}, S) ->
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
-	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, MyFirstKey}),
+	gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, first_key, MyFirstKey}),
 
 	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
@@ -150,7 +158,7 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 
 			NextHandler = ?nextNodeID,
 			NewFirstKey = min(?minKey, ComputationSoFar),
-			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
+			gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
 
 			{noreply, S}
 	end;
@@ -165,7 +173,7 @@ handle_cast({Pid, Ref, last_key}, S) ->
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
-	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, MyLastKey}),
+	gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, last_key, MyLastKey}),
 
 	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
@@ -187,7 +195,7 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 
 			NextHandler = ?nextNodeID,
 			NewLastKey = max(?maxKey, ComputationSoFar),
-			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
+			gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
 
 			{noreply, S}
 	end;
@@ -202,7 +210,7 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 
 	NewInProgressRefs = [Ref | OldInProgressRefs],
 
-	gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
+	gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
 
 	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
@@ -224,7 +232,7 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs 
 
 			NextHandler = ?nextNodeID,
 			NewNumKeys = ?myInProgressRefs + ComputationSoFar,
-			gen_server:cast({global, ?HANDLERPROCNAME(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
+			gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 			{noreply, S}
 	end.
@@ -247,22 +255,20 @@ terminate(_Reason, _State) ->
 
 distTo(ID, S) ->
 	utils:modDist(?m, ?myID, ID).
+
 	
 isMyProcess(ID, S) ->
   (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
-%Two to the M
-twoM(M) -> 1 bsl M.
-
 %% init
-startAllSPs(Start, Stop, M, HandlerID) when Stop =/= Start ->
+startAllSPs(Stop, Stop, M, HandlerID) -> 
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID}, []),
+	done;
+startAllSPs(Start, Stop, M, HandlerID) ->
 	%Start the SP
-	gen_server:start({global, ?STORAGEPROCNAME(Stop)}, storage, {M, Stop, HandlerID}, []),
-	startAllSPs(Start, (Stop - 1) rem twoM(M), M, HandlerID);
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID}, []),
+	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID).
 
-startAllSPs(Start, Stop, M, HandlerID) when Stop == Start -> 
-	gen_server:start({global, ?STORAGEPROCNAME(Stop)}, storage, {M, Stop, HandlerID}, []),
-	done.
 
 %% backup_store
 updateMinKey(Key, S) ->

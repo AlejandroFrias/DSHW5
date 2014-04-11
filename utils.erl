@@ -6,10 +6,6 @@
 
 -module (utils).
 
--define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
-
--define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
-
 -export ([timestamp/0,
           log/1,
           log/2,
@@ -23,7 +19,9 @@
           slog/2,
           slog/3,
           hlog/2,
-          hlog/3]).
+          hlog/3,
+          sname/1,
+          hname/1]).
 
 timestamp() ->
   {A, B, Milli} = now(),
@@ -39,7 +37,7 @@ log(Message, Format) ->
   log(S).
 
 slog(Message, ProcNum) -> 
-  S = io_lib:format(" (~p) " ++ Message, [?STORAGEPROCNAME(ProcNum)]),
+  S = io_lib:format(" (~p) " ++ Message, [sname(ProcNum)]),
   log(S).
 
 slog(Message, Format, ProcNum) ->
@@ -47,7 +45,7 @@ slog(Message, Format, ProcNum) ->
   slog(S, ProcNum).
 
 hlog(Message, ProcNum) -> 
-  S = io_lib:format(" (~p) " ++ Message, [?HANDLERPROCNAME(ProcNum)]),
+  S = io_lib:format(" (~p) " ++ Message, [hname(ProcNum)]),
   log(S).
 
 hlog(Message, Format, ProcNum) ->
@@ -66,10 +64,10 @@ first_n_elements(N, List) ->
 
 %Check if it's a handler or storage
 isHandler(Name) ->
-  io:format("name is ~w~n", [Name]),
+  % io:format("name is ~w~n", [Name]),
   NameList = atom_to_list(Name),
   SubName = lists:sublist(NameList, 7),
-  io:format("subname is ~w~n", [list_to_atom(SubName)]),
+  % io:format("subname is ~w~n", [list_to_atom(SubName)]),
   SubName == "handler".
 
 %Parses the number out of a handler name
@@ -92,3 +90,9 @@ logB(Num, Base) ->
 
 log2(Num) ->
   logB(Num, 2).
+
+sname(Num) ->
+  list_to_atom("storage" ++ integer_to_list(Num)).
+
+hname(Num) ->
+  list_to_atom("handler" ++ integer_to_list(Num)).

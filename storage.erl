@@ -20,10 +20,6 @@
 	  code_change/3, 
 	  terminate/2]).
 
--define(STORAGEPROCNAME (Num), list_to_atom( "storage" ++ integer_to_list(Num) ) ).
--define(HANDLERPROCNAME (Num), list_to_atom( "handler" ++ integer_to_list(Num) ) ).
-
-
 -define(m, S#state.m).
 -define(myID, S#state.myID).
 -define(myDict, S#state.myDict).
@@ -74,7 +70,8 @@ init( {M, MyID, MyHandlerID} ) ->
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
 
 
-handle_call(getState, _, S) ->
+handle_call(Msg, _From, S) ->
+  utils:slog("UH OH! We don't support msgs like ~p.", [S], ?myID),
 	{noreply, S}.
 
 
@@ -91,13 +88,13 @@ handle_cast(Msg = {Pid, Ref, store, Key, Value}, S) ->
 			NewDict = dict:store(Key, Value, OldDict),
 
 			%Notify our handler about it
-			gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, {Pid, Ref, backup_store, Key, Value, ?myID}),
+			gen_server:cast({global, utils:hname(?myHandlerID)}, {Pid, Ref, backup_store, Key, Value, ?myID}),
 
 			{noreply, S#state{myDict = NewDict}};
 		false ->
 			Closest = findClosestTo(Dest, S),
 			utils:slog("Received store message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
-			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, Msg),
+			gen_server:cast({global, utils:sname(Closest)}, Msg),
 			{noreply, S}
 	end;
 
@@ -115,7 +112,7 @@ handle_cast(Msg = {Pid, Ref, retrieve, Key}, S) ->
     false ->
       Closest = findClosestTo(Dest, S),
       utils:slog("Received retrieve message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
-      gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, Msg)
+      gen_server:cast({global, utils:sname(Closest)}, Msg)
 	end,
   {noreply, S};
 
@@ -127,26 +124,26 @@ handle_cast(Msg, S) ->
 
 % Receive messages from outside world and forward them as internal messages
 handle_info(Msg = {_Pid, _Ref, store, _Key, _Value}, S) ->
-	gen_server:cast({global, ?STORAGEPROCNAME(?myID)}, Msg),
+	gen_server:cast({global, utils:sname(?myID)}, Msg),
 	{noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, retrieve, _Key}, S) ->
-  gen_server:cast({global, ?STORAGEPROCNAME(?myID)}, Msg),
+  gen_server:cast({global, utils:sname(?myID)}, Msg),
   {noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, first_key}, S) ->
 	utils:slog("Received first_key request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, Msg),
+	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
 	{noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, last_key}, S) ->
 	utils:slog("Received last_key request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, Msg),
+	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
 	{noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, num_keys}, S) ->
 	utils:slog("Received num_keys request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, ?HANDLERPROCNAME(?myHandlerID)}, Msg),
+	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
 	{noreply, S};
 
 handle_info(_, S) ->
