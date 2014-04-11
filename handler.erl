@@ -64,20 +64,27 @@ init({M, MyID}) ->
 init({M, MyID, NextNodeID}) -> 
 	utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
 	utils:hlog("My node name is ~w", [node()], MyID),
-	%Names = global:registered_names(),
+	%
   	%io:format("Registered names (new handler): ~w~n", [Names]),
 
-	startAllSPs(MyID, NextNodeID - 1, M, MyID, []),
+  	%Tell the previous guy stop his nodes
+  	Names = global:registered_names(),
+  	HandlerIDs = [utils:getID(Name) || Name <- Names, utils:isHandler(Name)],
+  	SortedIDs = lists:sort(HandlerIDs),
+  	MyIDIndex = string:str(SortedIDs, MyID),
+  	PrevHandlerIndex = ((MyIDIndex - 1) rem length(SortedIDs)) + 1 %Account for lousy erlang indexing from 1
+  	PrevHandlerID = lists:nth(PrevHandlerIndex, SortedIDs),
 
+  	gen_server:call({global, utils:hname(PrevHandlerID)}, {joining_front, MyID}),
 
-  	% BackupData = gen_server:call({global, ?HANDLERPROCNAME(NextNodeID)}, {joining_behind, MyID}),
+  	%Get the data from our next node and then spin up instances
+  	{NextBackupData, MinKey, MaxKey} = gen_server:call({global, utils:hname(NextNodeID)}, {joining_behind, MyID}),
+	BackupData = startAllSPs(MyID, NextNodeID - 1, M, MyID, NextBackupData),
 
-  	% gen_server:call({global, })
-
-
+	NumKeys = length(BackupData),
 
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
-		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
+		myBackup = [], minKey = MinKey, maxKey = MaxKey, myBackupSize = NumKeys,
 		myInProgressRefs = []}}. %Fix these keys
 
 % A new node is joining in front of this node. Need to terminate processes
@@ -268,23 +275,23 @@ isMyProcess(ID, S) ->
 
 %% init
 startAllSPs(Stop, Stop, M, HandlerID, Data) -> 
-	SPData = dataToDict(Data, Stop),
+	{SPData, Rest} = dataToDict(Data, Stop),
 	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
-	done;
+	Rest;
+
 startAllSPs(Start, Stop, M, HandlerID, Data) ->
-	SPData = dataToDict(Data, Stop),
+	{SPData, Rest} = dataToDict(Data, Stop),
 
 	%Start the SP
 	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
-	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID, Data).
+	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID, Rest).
 
 
 dataToDict(Data, ID) ->
 	IDData = [{Key, Value} || {Key, Value, ID} <- Data], %lists:keytake(ID, ?ID, Data),
+	Rest = [Datum || Datum = {Key, Value, RestID} <- Data, RestID =/= ID],
 	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
-	dict:from_list(IDData).
-
-stripID({Key, Value, _ID}) -> {Key, Value}.
+	{dict:from_list(IDData), Rest}.
 
 %% backup_store
 updateMinKey(Key, S) ->
