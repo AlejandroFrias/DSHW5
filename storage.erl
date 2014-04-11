@@ -101,13 +101,25 @@ handle_cast({Pid, Ref, store, Key, Value}, S) ->
 			{noreply, S}
 	end;
 
-handle_cast({Pid, Ref, retrieve, Key}, S) ->
+handle_cast(Msg = {Pid, Ref, retrieve, Key}, S) ->
 	case hash(Key, ?m) == ?myID of
-		true -> storeit;
-		false -> forwardmessage
+		true -> 
+      case lists:is_key(Key, ?myDict) of
+        true ->
+          Value = lists:fetch(Key, ?myDict);
+        false ->
+          Value = no_value
+      end,
+      utils:slog("Retrieved Value ~p for Key ~p.", [Value, Key], ?myID),
+      Pid ! {Ref, retrieved, Value};
+    false ->
+      Closest = findClosestTo(Key, S),
+      utils:slog("Received retrieve message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
+      gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, Msg),
+
 	end,
     %gen_server:cast(Pid, {Ref, retrieved, dict:fetch(Key, MyDict)}),
-    {noreply, S};
+  {noreply, S};
 
 handle_cast({Pid, Ref, retrieve, Key, Value}, S) -> changeme
     % pass the store request along
