@@ -1,6 +1,6 @@
 -module (t).
 
--export([init/0, connect/1, getPid/1]).
+-export([init/0, connect/1, getPid/1, store/3, retrieve/2]).
 
 -define(STORAGEPROCNAME (Num), list_to_atom("storage" ++ integer_to_list(Num))).
 
@@ -11,8 +11,7 @@
 % Only need to call once to the daemon running and kernel started.
 init() ->
   _ = os:cmd("epmd -daemon"),
-  net_kernel:start([testy, shortnames]),
-  connect(node()).
+  net_kernel:start([testy, shortnames]).
 
 % used to reconnect to the original node.
 connect(Node) ->
@@ -33,7 +32,7 @@ store(Key, Value, ProcID) ->
     after
       ?TIMEOUT ->
         utils:log("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID]) 
-  end
+  end.
 
 % sends retrieve message and waits for response
 retrieve(Key, ProcID) ->
@@ -46,4 +45,4 @@ retrieve(Key, ProcID) ->
     after
       ?TIMEOUT ->
         utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) 
-  end
+  end.
