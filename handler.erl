@@ -74,6 +74,8 @@ init({M, MyID, NextNodeID}) ->
 
   	BackupData = gen_server:call({global, ?HANDLERPROCNAME(NextNodeID)}, {joining_behind, MyID}),
 
+  	gen_server:call({global, })
+
 	startAllSPsWithData(MyID, NextNodeID - 1, M, MyID, BackupData),
 
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
@@ -279,9 +281,9 @@ startAllSPsWithData(Start, Stop, M, HandlerID, Data) when Stop == Start ->
 	done.
 
 dataToDict(Data, ID) ->
-	IDData = lists:key_take(ID, ?ID, Data),
-	StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
-	dict:from_list(StrippedData).
+	IDData = [{Key, Value} || {Key, Value, ThisID} <- Data], %lists:keytake(ID, ?ID, Data),
+	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
+	dict:from_list(IDData).
 
 stripID({Key, Value, _ID}) -> {Key, Value}.
 
