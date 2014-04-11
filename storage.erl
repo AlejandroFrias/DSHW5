@@ -49,9 +49,17 @@ hash( Key, M ) ->
 % Round down the log2 of the distance to the process, to know how many powers of 
 % two, then use that chord.
 findClosestTo(Dest, S) ->
+<<<<<<< HEAD
+  Blahrh = lists:last([(?myID + twoM(X)) rem twoM(?m) || 
+             X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]),
+  utils:log("Failure! ~w", [[(?myID + twoM(X)) rem twoM(?m) || 
+             X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]]),
+  Blahrh.
+=======
   Dist = distTo(Dest, S),
   Chord = trunc(utils:log2(Dist)),
   ?myID + utils:pow2(Chord).
+>>>>>>> f9e012d8e9e17bb2b6048c6807cbea4be053d4df
 
 distTo(ID, S) ->
   utils:modDist(?m, ?myID, ID).
@@ -92,7 +100,7 @@ handle_cast({Pid, Ref, store, Key, Value}, S) ->
 			{noreply, S#state{myDict = NewDict}};
 		false ->
 			Closest = findClosestTo(Dest, S),
-			utils:log("SP ~w received store message for SP ~w, forwarding it along", [?myID, Closest]),
+			utils:log("SP ~w received store message for SP ~w, forwarding it to ~w", [?myID, Dest, Closest]),
 			gen_server:cast({global, ?STORAGEPROCNAME(Closest)}, {Pid, Ref, store, Key, Value}),
 			{noreply, S}
 	end;
