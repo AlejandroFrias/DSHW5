@@ -6,7 +6,15 @@
 
 -module (utils).
 
--export ([timestamp/0, log/1, log/2, first_n_elements/2, isHandler/1, getID/1, modDist/3]).
+-export ([timestamp/0,
+          log/1,
+          log/2,
+          first_n_elements/2,
+          isHandler/1,
+          getID/1,
+          modDist/3,
+          log2/1,
+          logB/2]).
 
 timestamp() ->
   {A, B, Milli} = now(),
@@ -44,7 +52,17 @@ getID(Name) ->
   Number = lists:sublist(NameList, 8, 42),
   list_to_integer(Number).
 
-% returns the distance between two processes when there are 2^M processes
+% returns the distance between two numbers, A and B, when there are 2^M numbers 
+% and it wraps around. Finds the distance moving in the positive direction only.
 modDist(M, A, B) ->
-  (A - B) rem M.
+  Dist = (A - B) rem pow2(M), 
+  (Dist + pow2(M))rem pow2(M).
 
+pow2(M) ->
+  1 bsl M.
+
+logB(Num, Base) ->
+  math:log(Num) / math:log(Base).
+
+log2(Num) ->
+  logB(Num, 2).

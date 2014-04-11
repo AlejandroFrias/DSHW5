@@ -88,9 +88,12 @@ handle_call(getState, _, S) ->
 handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 	case isMyProcess(ProcessID, S) of
 		true ->
+			utils:log("Received a backup_store request from my process: ~p", [ProcessID]),
+			utils:log("Forwarding the message to the next node (~p) to backup.", [?nextNodeID]),
 			gen_server:cast({global, ?HANDLERPROCNAME(?nextNodeID)}, Msg),
 			{noreply, S};
 		false ->
+			utils:log("Received a backup_store request from my neighboring node."),
 			case lists:keyfind(Key, ?KEY, ?myBackup) of
 				false ->
 					OldValue = no_value,
@@ -101,6 +104,8 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 					NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
 					NewBackupSize = ?myBackupSize
 			end,
+			utils:log("Stored ~p, old value was ~p.", [Value, OldValue]),
+			utils:log("Sending stored confirmation to ~p", [Pid]),
 			% Message the outside world that the value was stored
 			Pid ! {Ref, stored, OldValue},
 

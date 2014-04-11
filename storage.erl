@@ -46,16 +46,24 @@ hash( Key, M ) ->
     % the range (MaxProcID) is limited to 2^32.
     erlang:phash2( Key, MaxProcID ).
 
-%TO DO: MAKE THIS ACTUALLY FIND THE CLOSEST
+% Round down the log2 of the distance to the process, to know how many powers of 
+% two, then use that chord.
 findClosestTo(Dest, S) ->
+<<<<<<< HEAD
   Blahrh = lists:last([(?myID + twoM(X)) rem twoM(?m) || 
              X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]),
   utils:log("Failure! ~w", [[(?myID + twoM(X)) rem twoM(?m) || 
              X <- lists:seq(0, ?m - 1), distTo((?myID + twoM(X)) rem twoM(?m), S) =< distTo(Dest, S)]]),
   Blahrh.
+=======
+  Dist = distTo(Dest, S),
+  Chord = trunc(utils:log2(Dist)),
+  ?myID + utils:pow2(Chord).
+>>>>>>> f9e012d8e9e17bb2b6048c6807cbea4be053d4df
 
 distTo(ID, S) ->
   utils:modDist(?m, ?myID, ID).
+
 
 
 %%%============================================================================
