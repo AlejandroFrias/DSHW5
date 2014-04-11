@@ -90,14 +90,16 @@ init({M, MyID, NextNodeID}) ->
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
-	ProcsToTerminate = [],
+	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID - 1, ?m)],
+	terminateProcs(ProcsToTerminate),
 	{reply, done, S};
-	
+
+
 % A new node is joining behind this node. Need to give it all the data for start
 % up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From, S) ->
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
-  {reply, ?myBackup, S#state{myBackup = NewBackup}};
+  {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup}};
 
 
 handle_call(Msg, _From, S) ->
@@ -288,10 +290,19 @@ startAllSPs(Start, Stop, M, HandlerID, Data) ->
 
 
 dataToDict(Data, ID) ->
-	IDData = [{Key, Value} || {Key, Value, ID} <- Data], %lists:keytake(ID, ?ID, Data),
+	IDData = [{Key, Value} || {Key, Value, ThisID} <- Data, ThisID == ID], %lists:keytake(ID, ?ID, Data),
 	Rest = [Datum || Datum = {Key, Value, RestID} <- Data, RestID =/= ID],
+	 %lists:keytake(ID, ?ID, Data),
 	%StrippedData = [stripID(D) || D <- IDData], %lists:map(stripID, IDData),
 	{dict:from_list(IDData), Rest}.
+
+
+
+terminateProcs([]) ->
+	done;
+terminateProcs([Proc | Procs]) ->
+	gen_server:call(Proc, terminate),
+	terminateProcs(Procs).
 
 %% backup_store
 updateMinKey(Key, S) ->

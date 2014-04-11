@@ -21,7 +21,10 @@
           hlog/2,
           hlog/3,
           sname/1,
-          hname/1]).
+          hname/1,
+          modSeq/3,
+          modInc/2,
+          modDec/2]).
 
 timestamp() ->
   {A, B, Milli} = now(),
@@ -96,3 +99,17 @@ sname(Num) ->
 
 hname(Num) ->
   list_to_atom("handler" ++ integer_to_list(Num)).
+
+modSeq(Start, End, M) ->
+  modSeq(Start, End, M, []).
+
+modSeq(Start, Start, _M, Seq) ->
+  lists:reverse([Start | Seq]);
+modSeq(Start, End, M, Seq) ->
+  modSeq(modInc(Start, M), End, M, [Start | Seq]).
+
+modInc(Num, M) ->
+  (Num + 1) rem pow2(M).
+
+modDec(Num, M) ->
+  (Num - 1 + pow2(M)) rem pow2(M).

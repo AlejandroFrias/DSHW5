@@ -68,9 +68,11 @@ init( {M, MyID, MyHandlerID, MyDict} ) ->
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
 
-
+handle_call(terminate, _From, S) ->
+  utils:slog("Goodbye.", ?myID),
+  {stop, "Asked to stop", terminated, S};
 handle_call(Msg, _From, S) ->
-  utils:slog("UH OH! We don't support msgs like ~p.", [S], ?myID),
+  utils:slog("UH OH! We don't support msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
 
 
