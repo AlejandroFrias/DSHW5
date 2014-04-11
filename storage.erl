@@ -67,9 +67,8 @@ distTo(ID, S) ->
 %%% GenServer Callbacks (For the rest of the code)
 %%%============================================================================
 
-init( {M, MyID, MyHandlerID} ) ->
+init( {M, MyID, MyHandlerID, MyDict} ) ->
     utils:slog( "Starting on node ~w.", [MyHandlerID], MyID),
-    MyDict = dict:new(),
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
 
