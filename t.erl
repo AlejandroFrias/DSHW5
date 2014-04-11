@@ -41,7 +41,7 @@ retrieve(Key, ProcID) ->
   Dest ! {self(), Ref, retrieve, Key},
   receive
     {Ref, retrieved, Value} ->
-      utils:log("~p retrieved from key ~p.", [Value, Key])
+      utils:log("Retrieved ~p from key ~p.", [Value, Key])
     after
       ?TIMEOUT ->
         utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) 
