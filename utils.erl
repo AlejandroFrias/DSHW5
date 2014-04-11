@@ -39,20 +39,20 @@ log(Message, Format) ->
   log(S).
 
 slog(Message, ProcNum) -> 
-  S = io_lib:format(" (~p) " ++ Message, ?STORAGEPROCNAME(ProcNum)),
+  S = io_lib:format(" (~p) " ++ Message, [?STORAGEPROCNAME(ProcNum)]),
   log(S).
 
 slog(Message, Format, ProcNum) ->
   S = io_lib:format(Message, Format),
-  slog(S).
+  slog(S, ProcNum).
 
 hlog(Message, ProcNum) -> 
-  S = io_lib:format(" (~p) " ++ Message, ?HANDLERPROCNAME(ProcNum)),
+  S = io_lib:format(" (~p) " ++ Message, [?HANDLERPROCNAME(ProcNum)]),
   log(S).
 
 hlog(Message, Format, ProcNum) ->
   S = io_lib:format(Message, Format),
-  hlog(S).
+  hlog(S, ProcNum).
 
 
 first_n_elements(N, List) ->
