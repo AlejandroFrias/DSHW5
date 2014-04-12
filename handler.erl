@@ -34,9 +34,17 @@
 -define(myInProgressRefs, S#state.myInProgressRefs).
 -define(myAllDataAssembling, S#state.myAllDataAssembling).
 -define(myProcsWaitingFor, S#state.myProcsWaitingFor).
+-define(myMonitorRef, S#state.myMonitorRef).
 
--record(state, {m, myID, nextNodeID, myBackup, minKey, maxKey, myBackupSize,
-	       myInProgressRefs}).
+-record(state, {m, 
+	              myID,
+	              nextNodeID,
+	              myBackup,
+	              minKey,
+	              maxKey,
+	              myBackupSize ,
+	              myInProgressRefs,
+	              myMonitorRef}).
 %% myInProgressRefs is a list of refs for messages for *key computations I started
 %  myAllDataAssembling - when we pull all data from nodes, we need a place to keep it while we get it all.
 %  myProcsWaitingFor - the number of processes that still haven't sent us their data. 
@@ -48,37 +56,36 @@ init({M, MyID}) ->
 	%net_kernel:start([node(), shortnames]),
 	%ConnectResult = net_kernel:connect_node(OriginProcess),
     %utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
-    timer:sleep(1000),
-    io:format("TEST"),
+   timer:sleep(1000),
 	utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
-	io:format("TEST2"),
-	utils:hlog("My node name is ~w", [node()], MyID),
+
 	% Start all the processes
 	startAllSPs(MyID, utils:pow2(M) - 1, M, []),
 	utils:hlog("Handler started successfully.", MyID),
+	utils:hlog("My node name is ~w", [node()], MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
-		myInProgressRefs = []}}; %Fix these keys
+		myInProgressRefs = [], myMonitorRef = make_ref()}}; %Fix these keys
 
 %Start up everything as a non-first node in a system
 init({M, PrevNodeID, MyID, NextNodeID}) -> 
 	utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
-	utils:hlog("My node name is ~w", [node()], MyID),
-	%
-  	%io:format("Registered names (new handler): ~w~n", [Names]),
 
-  	%Tell the previous guy stop his nodes
-  	gen_server:call({global, utils:hname(PrevNodeID)}, {joining_front, MyID}),
+	% Tell the previous guy stop his nodes (and get a Pid for it)
+	MonitorPid = gen_server:call({global, utils:hname(PrevNodeID)}, {joining_front, MyID}),
+	% Start monitoring previous node
+	NewMonitorRef = erlang:monitor(process, MonitorPid),
 
-  	%Get the data from our next node and then spin up instances
-  	{NextBackupData, MinKey, MaxKey} = gen_server:call({global, utils:hname(NextNodeID)}, {joining_behind, MyID}),
+	% Get the data from our next node and then spin up instances
+	{NextBackupData, MinKey, MaxKey} = gen_server:call({global, utils:hname(NextNodeID)}, {joining_behind, MyID}),
 	BackupData = startAllSPs(MyID, utils:modDec(NextNodeID, M), M, NextBackupData),
 
 	NumKeys = length(BackupData),
 
+	utils:hlog("Ready to go. My node name is ~w", [node()], MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = NextNodeID, 
-		myBackup = [], minKey = MinKey, maxKey = MaxKey, myBackupSize = NumKeys,
-		myInProgressRefs = []}}. %Fix these keys
+		myBackup = BackupData, minKey = MinKey, maxKey = MaxKey, myBackupSize = NumKeys,
+		myInProgressRefs = [], myMonitorRef = NewMonitorRef}}.
 
 % A new node is joining in front of this node. Need to terminate processes
 % for the transfer.
@@ -86,19 +93,23 @@ handle_call({joining_front, NodeID}, _From, S) ->
 	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
 	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, utils:modDec(?nextNodeID, ?m), ?m)],
 	terminateProcs(ProcsToTerminate),
-	{reply, done, S#state{nextNodeID = NodeID}};
+	{reply, self(), S#state{nextNodeID = NodeID}};
 
 
 % A new node is joining behind this node. Need to give it all the data for start
 % up and back up and then delete the backup data we no longer need.
-handle_call({joining_behind, NodeID}, _From, S) ->
+handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 	utils:hlog("New node joining behind me at ~p", [NodeID], ?myID),
+	% stop monitoring the one who used to be behind you.
+	erlang:demonitor(?myMonitorRef), 
+	% start monitoring the new node that is behind you.
+	Ref = erlang:monitor(process, Pid),
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
-  {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup}};
+  {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup, myMonitorRef = Ref}};
 
 
 handle_call(Msg, _From, S) ->
-  utils:slog("UH OH! We don't support msgs like ~p.", [Msg], ?myID),
+  utils:slog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
 
 % Receives a backup_store message. Should forward to next node if its from it's 
@@ -246,8 +257,17 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs 
 
 			{noreply, S}
 	end.
+% handle_cast(Msg, S) ->
+%   utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
+% 	{noreply, S}.
 
-handle_info({_Pid, _Ref, chill}, S) ->
+handle_info({'DOWN', Ref, process, _Pid, _}, S) when Ref == ?myMonitorRef ->
+	% The node behind you died. Time to take it's place
+	% and start up those processes and get some back up data.
+	utils:hlog("Oh no! The previous node died!", ?myID),
+	{noreply, S};
+handle_info(Msg, S) ->
+	utils:slog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
 
 code_change(_OldVsn, State, _Extra) ->
