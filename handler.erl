@@ -54,7 +54,7 @@ init({M, MyID}) ->
 	io:format("TEST2"),
 	utils:hlog("My node name is ~w", [node()], MyID),
 	% Start all the processes
-	startAllSPs(MyID, utils:pow2(M) - 1, M, MyID, []),
+	startAllSPs(MyID, utils:pow2(M) - 1, M, []),
 	utils:hlog("Handler started successfully.", MyID),
 	{ok, #state{m = M, myID = MyID, nextNodeID = 0, 
 		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
@@ -70,11 +70,9 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
   	%Tell the previous guy stop his nodes
   	gen_server:call({global, utils:hname(PrevNodeID)}, {joining_front, MyID}),
 
-  	io:format("fHERE"),
-
   	%Get the data from our next node and then spin up instances
   	{NextBackupData, MinKey, MaxKey} = gen_server:call({global, utils:hname(NextNodeID)}, {joining_behind, MyID}),
-	BackupData = startAllSPs(MyID, NextNodeID - 1, M, MyID, NextBackupData),
+	BackupData = startAllSPs(MyID, utils:modDec(NextNodeID, M), M, NextBackupData),
 
 	NumKeys = length(BackupData),
 
@@ -273,17 +271,18 @@ isMyProcess(ID, S) ->
   (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
 %% init
-startAllSPs(Stop, Stop, M, HandlerID, Data) -> 
+% We use start as handler ID
+startAllSPs(Stop, Stop, M, Data) -> 
 	{SPData, Rest} = dataToDict(Data, Stop),
-	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Stop, SPData}, []),
 	Rest;
 
-startAllSPs(Start, Stop, M, HandlerID, Data) ->
+startAllSPs(Start, Stop, M, Data) ->
 	{SPData, Rest} = dataToDict(Data, Stop),
 
 	%Start the SP
-	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, HandlerID, SPData}, []),
-	startAllSPs(Start, ((Stop - 1 + utils:pow2(M)) rem utils:pow2(M)), M, HandlerID, Rest).
+	gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Start, SPData}, []),
+	startAllSPs(Start, utils:modDec(Stop, M), M, Rest).
 
 
 dataToDict(Data, ID) ->
