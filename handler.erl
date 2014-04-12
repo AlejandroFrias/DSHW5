@@ -87,9 +87,8 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
 handle_call({joining_front, NodeID}, _From, S) ->
 	utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
 	ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, utils:modDec(?nextNodeID, ?m), ?m)],
-	utils:hlog("About to terminate processes: ~p", [ProcsToTerminate], ?myID),
 	terminateProcs(ProcsToTerminate),
-	{reply, done, S};
+	{reply, done, S#state{nextNodeID = NodeID}};
 
 
 % A new node is joining behind this node. Need to give it all the data for start
