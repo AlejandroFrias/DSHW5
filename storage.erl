@@ -70,7 +70,7 @@ init( {M, MyID, MyHandlerID, MyDict} ) ->
 
 handle_call(terminate, _From, S) ->
   utils:slog("Goodbye.", ?myID),
-  {stop, "Asked to stop", terminated, S};
+  {stop, normal, terminated, S};
 handle_call(Msg, _From, S) ->
   utils:slog("UH OH! We don't support msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
