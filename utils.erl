@@ -11,6 +11,7 @@
           log/2,
           first_n_elements/2,
           isHandler/1,
+          isStorage/1,
           getID/1,
           modDist/3,
           log2/1,
@@ -65,7 +66,7 @@ first_n_elements(N, List) ->
       List
   end.
 
-%Check if it's a handler or storage
+%Check if it's a handler
 isHandler(Name) ->
   % io:format("name is ~w~n", [Name]),
   NameList = atom_to_list(Name),
@@ -73,7 +74,15 @@ isHandler(Name) ->
   % io:format("subname is ~w~n", [list_to_atom(SubName)]),
   SubName == "handler".
 
-%Parses the number out of a handler name
+%Check if it's a handler
+isStorage(Name) ->
+  % io:format("name is ~w~n", [Name]),
+  NameList = atom_to_list(Name),
+  SubName = lists:sublist(NameList, 7),
+  % io:format("subname is ~w~n", [list_to_atom(SubName)]),
+  SubName == "storage".
+
+%Parses the number out of a handler or storage name
 getID(Name) ->
   NameList = atom_to_list(Name),
   Number = lists:sublist(NameList, 8, 42),

@@ -147,6 +147,20 @@ handle_info(Msg = {_Pid, _Ref, num_keys}, S) ->
 	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
 	{noreply, S};
 
+handle_info({Pid, Ref, node_list}, S) ->
+  utils:slog("Received node_list request from outside world.", ?myID),
+  Names = global:registered_names(),
+  ActiveNodeIDs = [utils:getID(N) || N <- Names, utils:isHandler(N)],
+  utils:slog("Sending Active Node IDs: ~p", [ActiveNodeIDs], ?myID),
+  Pid ! {Ref, result, ActiveNodeIDs},
+  {noreply, S};
+
+handle_info(Msg = {_Pid, _Ref, leave}, S) ->
+  utils:slog("Received leave request from outside world, forwarding to handler.", ?myID),
+  gen_server:call({global, utils:hname(?myHandlerID)}, Msg),
+  {noreply, S};
+
+
 handle_info(_, S) ->
 	utils:slog("Received unexpected message! OHHHH NOOOOOO", ?myID),
 	{noreply, S}.

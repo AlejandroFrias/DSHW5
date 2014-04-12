@@ -107,6 +107,10 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
   NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
   {reply, {?myBackup, ?minKey, ?maxKey}, S#state{myBackup = NewBackup, myMonitorRef = Ref}};
 
+handle_call({_Pid, _Ref, leave}, _From, S) ->
+	% ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+	% terminateProcs(ProcsToTerminate),
+	{stop, normal, "Asked to leave by outside world", S};
 
 handle_call(Msg, _From, S) ->
   utils:slog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
@@ -123,7 +127,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 			gen_server:cast({global, utils:hname(?nextNodeID)}, Msg),
 			{noreply, S};
 		false ->
-			utils:hlog("Received a backup_store request to be stored.", ?myID),
+			utils:hlog("Received a backup_store request for {~p, ~p}.", [Key, Value], ?myID),
 			case lists:keyfind(Key, ?KEY, ?myBackup) of
 				false ->
 					OldValue = no_value,
@@ -134,7 +138,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 					NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
 					NewBackupSize = ?myBackupSize
 			end,
-			utils:hlog("Stored ~p, old value was ~p.", [Value, OldValue], ?myID),
+			utils:hlog("Backed up {~p, ~p}, old value was ~p.", [Key, Value, OldValue], ?myID),
 			utils:hlog("Sending stored confirmation to ~p", [Pid], ?myID),
 			% Message the outside world that the value was stored
 			Pid ! {Ref, stored, OldValue},
@@ -236,16 +240,14 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 	{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
 %Getting a message from another handler about last keys
-handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
-	InProgressRefs = ?myInProgressRefs,
-
-	case lists:member(Ref, InProgressRefs) of
+handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
+	case lists:member(Ref, ?myInProgressRefs) of
 		true -> 
 			utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
 
 			Pid ! {Ref, result, ComputationSoFar},
 
-			NewInProgressRefs = lists:delete(Ref, InProgressRefs),
+			NewInProgressRefs = lists:delete(Ref, ?myInProgressRefs),
 
 			{noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 		false ->
@@ -256,16 +258,19 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S = #state{myInProgressRefs 
 			gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 			{noreply, S}
-	end.
-% handle_cast(Msg, S) ->
-%   utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
-% 	{noreply, S}.
+	end;
 
+handle_cast(Msg, S) ->
+  utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
+	{noreply, S}.
+
+% Sent from previous node when it dies (since we have a monitor on it)
 handle_info({'DOWN', Ref, process, _Pid, _}, S) when Ref == ?myMonitorRef ->
 	% The node behind you died. Time to take it's place
 	% and start up those processes and get some back up data.
 	utils:hlog("Oh no! The previous node died!", ?myID),
 	{noreply, S};
+
 handle_info(Msg, S) ->
 	utils:slog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.

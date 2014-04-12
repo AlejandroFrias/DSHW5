@@ -1,10 +1,14 @@
 -module (t).
 
--export([init/0, connect/1, getPid/1, store/3, retrieve/2, firstKey/1, lastKey/1, numKeys/1]).
-
--define(STORAGEPROCNAME (Num), list_to_atom("storage" ++ integer_to_list(Num))).
-
--define(HANDLERPROCNAME (Num), list_to_atom("handler" ++ integer_to_list(Num))).
+-export([init/0,
+         connect/1,
+         getPid/1,
+         store/3,
+         retrieve/2,
+         firstKey/1,
+         lastKey/1,
+         numKeys/1,
+         nodeList/1]).
 
 -define (TIMEOUT, 10000).
 
@@ -19,7 +23,7 @@ connect(Node) ->
 
 % Gets the pid of the storage process
 getPid(ProcNum) ->
-  global:whereis_name(?STORAGEPROCNAME(ProcNum)).
+  global:whereis_name(utils:sname(ProcNum)).
 
 % sends store message and waits for response
 store(Key, Value, ProcID) ->
@@ -83,4 +87,22 @@ numKeys(ProcID) ->
     after
       ?TIMEOUT ->
         utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
+  end.
+
+nodeList(ProcID) ->
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, node_list},
+  receive
+    {Ref, result, Result} ->
+      utils:log("Node List: ~p.", [Result])
+    after
+      ?TIMEOUT ->
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
+  end.
+
+leave(ProcID) ->
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, leave},
   end.
