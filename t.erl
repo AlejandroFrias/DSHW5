@@ -9,7 +9,7 @@
          lastKey/1,
          numKeys/1,
          nodeList/1,
-	 leave/1]).
+         leave/1]).
 
 -define (TIMEOUT, 10000).
 
@@ -103,6 +103,6 @@ nodeList(ProcID) ->
     end.
 
 leave(ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, leave}.
+  Ref = make_ref(),
+  Dest = getPid(ProcID),
+  Dest ! {self(), Ref, leave}.
