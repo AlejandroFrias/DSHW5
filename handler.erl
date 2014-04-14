@@ -372,14 +372,14 @@ isMyProcess(ID, S) ->
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
     {SPData, Rest} = dataToDict(Data, Stop),
-    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Stop, SPData}, []),
+    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     Rest;
 
 startAllSPs(Start, Stop, M, Data) ->
     {SPData, Rest} = dataToDict(Data, Stop),
 
     %%Start the SP
-    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Start, SPData}, []),
+    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     startAllSPs(Start, utils:modDec(Stop, M), M, Rest).
 
 
