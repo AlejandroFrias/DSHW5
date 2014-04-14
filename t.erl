@@ -1,6 +1,7 @@
 -module (t).
 
--export([init/0,
+-export([initAsh/0,
+         init/0,
          connect/1,
          getPid/1,
          store/3,
@@ -16,6 +17,10 @@
 %% Alphabet (lower case and upper case) and space
 -define (CHARS, lists:seq(97, 122) ++ lists:seq(65, 90) ++ [32]).
 
+initAsh() ->
+    Seed = init(),
+    connect('node1@ash'),
+    Seed.
 
 %% Only need to call once to the daemon running and kernel started.
 %% Also seeds the random to now() and returns the seed used for repeating the 

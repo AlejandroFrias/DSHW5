@@ -290,9 +290,9 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
     end;
 
 handle_cast({_Pid, _Ref, leave}, S) ->
+    utils:hlog("Asked to leave by outside world.", ?myID),
     ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
     terminateProcs(ProcsToTerminate),
-    utils:hlog("Asked to leave by outside world.", ?myID),
 
     % {stop, normal, "Asked to leave by outside world", S};
     erlang:halt();
