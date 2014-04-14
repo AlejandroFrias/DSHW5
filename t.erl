@@ -23,7 +23,9 @@
          num_keys/1,
          node_list/1,
          leave/1,
-         store_many_sequence/2]).
+         test_store_basic/2,
+         test_empty/1,
+         test_back_up/2]).
 
 -define (TIMEOUT, 10000).
 
@@ -55,13 +57,18 @@ init(Seed = {A1, A2, A3}) ->
 
 %% Used to (re)connect to the original node for global registry access.
 connect(Node) ->
-    net_kernel:connect_node(Node).
+    case net_kernel:connect_node(Node) of
+        true ->
+            utils:log("Connected Successfully to ~p", [Node]);
+        _Other ->
+            utils:log("Failed to Connect to ~p", [Node])
+    end.
 
 %% Gets the pid of the storage process
 get_pid(ProcNum) ->
     case global:whereis_name(utils:sname(ProcNum)) of
         undefined ->
-            utils:log("Storage Process ID ~p does not exist.", [ProcNum]);
+            utils:log("ERROR: Storage Process ID ~p does not exist.", [ProcNum]);
         Pid ->
             Pid
     end.
@@ -75,14 +82,17 @@ send_store(Key, Value, ProcID) ->
 
 %% Sends store request and waits for response
 store(Key, Value, ProcID) ->
+    store(Key, Value, ProcID, true).
+
+store(Key, Value, ProcID, Debug) ->
     Ref = send_store(Key, Value, ProcID),
     receive
 	{Ref, stored, OldValue} ->
-	    utils:log("{~p, ~p} stored, replacing ~p.", [Key, Value, OldValue]),
+	    utils:dlog("{~p, ~p} stored, replacing ~p.", [Key, Value, OldValue], Debug),
         Success = {ok, OldValue}
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID]),
+	    utils:dlog("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID], Debug),
         Success = error
     end,
     Success.
@@ -97,14 +107,17 @@ send_retrieve(Key, ProcID) ->
 
 %% Sends retrieve request and waits for response
 retrieve(Key, ProcID) ->
+    retrieve(Key, ProcID, true).
+
+retrieve(Key, ProcID, Debug) ->
     Ref = send_retrieve(Key, ProcID),
     receive
     {Ref, retrieved, Value} ->
-        utils:log("Retrieved ~p from key ~p.", [Value, Key]),
+        utils:dlog("Retrieved ~p from key ~p.", [Value, Key], Debug),
         Success = {ok, Value}
     after
     ?TIMEOUT ->
-        utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) ,
+        utils:dlog("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID], Debug) ,
         Success = error
     end,
     Success.
@@ -113,19 +126,22 @@ retrieve(Key, ProcID) ->
 send_first_key(ProcID) ->
     Ref = make_ref(),
     Dest = get_pid(ProcID),
-    Dest ! {self(), Ref, first_key, ProcID},
+    Dest ! {self(), Ref, first_key},
     Ref.
 
 %% Sends first_key request and waits for response
 first_key(ProcID) ->
+    first_key(ProcID, true).
+
+first_key(ProcID, Debug) ->
     Ref = send_first_key(ProcID),
     receive
 	{Ref, result, Result} ->
-	    utils:log("First key: ~p.", [Result]),
+	    utils:dlog("First key: ~p.", [Result], Debug),
         Success = {ok, Result}
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+	    utils:dlog("Timed out waiting for result. sent to storage~p.", [ProcID], Debug) ,
         Success = error
     end,
     Success.
@@ -134,19 +150,22 @@ first_key(ProcID) ->
 send_last_key(ProcID) ->
     Ref = make_ref(),
     Dest = get_pid(ProcID),
-    Dest ! {self(), Ref, last_key, ProcID},
+    Dest ! {self(), Ref, last_key},
     Ref.
 
 %% Sends last_key request and waits for response
 last_key(ProcID) ->
+    last_key(ProcID, true).
+
+last_key(ProcID, Debug) ->
     Ref = send_last_key(ProcID),
     receive
     {Ref, result, Result} ->
-        utils:log("Last key: ~p.", [Result]),
+        utils:dlog("Last key: ~p.", [Result], Debug),
         Success = {ok, Result}
     after
     ?TIMEOUT ->
-        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        utils:dlog("Timed out waiting for result. sent to storage~p.", [ProcID], Debug),
         Success = error
     end,
     Success.
@@ -155,40 +174,49 @@ last_key(ProcID) ->
 send_num_keys(ProcID) ->
     Ref = make_ref(),
     Dest = get_pid(ProcID),
-    Dest ! {self(), Ref, num_keys, ProcID},
+    Dest ! {self(), Ref, num_keys},
     Ref.
 
 %% Sends num_keys request and waits for response
+%% Returns {ok, NumKeys} or error
 num_keys(ProcID) ->
+    num_keys(ProcID, true).
+
+num_keys(ProcID, Debug) ->
     Ref = send_num_keys(ProcID),
     receive
     {Ref, result, Result} ->
-        utils:log("Num keys: ~p.", [Result]),
+        utils:dlog("Num keys: ~p.", [Result], Debug),
         Success = {ok, Result}
     after
     ?TIMEOUT ->
-        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        utils:dlog("Timed out waiting for result. sent to storage~p.", [ProcID], Debug),
         Success = error
     end,
     Success.
 
 %% Sends a node_list request and returns the Ref for it
+%% Returns the Ref used for the request
 send_node_list(ProcID) ->
     Ref = make_ref(),
     Dest = get_pid(ProcID),
-    Dest ! {self(), Ref, node_list, ProcID},
+    Dest ! {self(), Ref, node_list},
     Ref.
 
 %% Sends node_list request and waits for response
+%% Returns {ok, NodeList} or error
 node_list(ProcID) ->
+    node_list(ProcID, true).
+
+node_list(ProcID, Debug) ->
     Ref = send_node_list(ProcID),
     receive
 	{Ref, result, Result} ->
-	    utils:log("Node List: ~p.", [Result]),
+	    utils:dlog("Node List: ~p.", [Result], Debug),
         Success = {ok, Result}
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+	    utils:dlog("Timed out waiting for result. sent to storage~p.", [ProcID], Debug),
         Success = error
     end,
     Success.
@@ -203,51 +231,100 @@ leave(ProcID) ->
 %%%                              TESTS YAY!!!                                %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% Tests that an empty untouched system is as it should be. Assumes no requests
+%% have been made before this function is called after a system is set up
+test_empty(M) ->
+    test_num_keys_all(0, utils:pow2(M) - 1).
+
+
+%% Tests that key-value pairs are stored and retrievable
+%% @param Num Number of store requests to make
+test_store_basic(Num, M) ->
+    utils:log("BEGIN Basic Store Test"),
+
+    case store_many_sequence(Num, M) of
+        {ok, Dict} ->
+            case retrieve_many_sequence(Dict, M) of
+                true ->
+                    utils:log("++ PASS Basic Store Test ++");
+                false ->
+                    utils:log("-- FAIL Basic Store Test --")
+            end;
+        error ->
+            utils:log("-- FAIL Basic Store Test --")
+    end.
+
+%% Tests that stores are backed up properly, by making nodes leave and trying to
+%% retrieve them after.
+%% @param Num Number of store requests to make
+test_back_up(Num, M) ->
+    finish_me.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%                       TEST HELPERS YAY!!!                                %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Sends a num_key request to all storage process up to the given one and
+%% checks that they are the Expected Value
+%% Returns boolean if successful or not
+test_num_keys_all(ExpectedNum, 0) ->
+    utils:log("Num Keys: ~p",[ExpectedNum]),
+    true;
+test_num_keys_all(ExpectedNum, ProcID) ->
+    case num_keys(ProcID, false) of
+        {ok, ExpectedNum} ->
+            test_num_keys_all(ExpectedNum, ProcID - 1);
+        {ok, Other} ->
+            utils:log("ERROR Num Keys - Expected ~p. Got ~p", [ExpectedNum, Other]), 
+            false;
+        error ->
+            utils:log("ERROR Num Keys - num_keys request sent to ~p never returned", [ProcID]),
+            false
+    end.
+
+
 
 %% Store many different key-value pairs in sequence (wait for response after every store)
 %% Num is the number of store requests to make
 store_many_sequence(Num, M) ->
+    utils:log("BEGIN store_many_sequence"),
     store_many_sequence(Num, M, dict:new()).
 
-store_many_sequence(0, M, KeyValuePairs) ->
-    case receive_many_sequence(KeyValuePairs, M) of
-        true ->
-            utils:log("++ SUCCESS store_many_sequence ++");
-        false ->
-            utils:log("-- FAIL store_many_sequence ++")
-    end,
-    KeyValuePairs;
+store_many_sequence(0, _M, KeyValuePairs) ->
+    utils:log("++ PASS store_many_sequence"),
+    {ok, KeyValuePairs};
 store_many_sequence(Num, M, KeyValuePairs) ->
     {Key, Value} = rand_key_value(),
     NewKeyValuePairs = dict:store(Key, Value, KeyValuePairs),
-    case store(Key, Value, rand_id(M)) of
+    case store(Key, Value, rand_id(M), false) of
         {ok, _OldValue} ->
             store_many_sequence(Num - 1, M, NewKeyValuePairs);
         error ->
             utils:log("-- FAIL store_many_sequence --"),
-            NewKeyValuePairs
+            error
     end.
 
 %% One at a time, confirm that each key-value pair exists.
-receive_many_sequence(KeyValueDict, M) ->
-    receive_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict)).
+retrieve_many_sequence(KeyValueDict, M) ->
+    utils:log("BEGIN retrieve_many_sequence"),
+    retrieve_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict)).
 
-receive_many_sequence(_KeyValueDict, _M, []) ->
-    utils:log("++ SUCCESS receive_many_sequence"),
+retrieve_many_sequence(_KeyValueDict, _M, []) ->
+    utils:log("++ PASS retrieve_many_sequence"),
     true;
-receive_many_sequence(Dict, M, [Key| Keys]) ->
-    case retrieve(Key, rand_id(M)) of
+retrieve_many_sequence(Dict, M, [Key| Keys]) ->
+    case retrieve(Key, rand_id(M), false) of
         {ok, Value} ->
             case dict:fetch(Key, Dict) == Value of
                 true ->
-                    receive_many_sequence(Dict, M, Keys);
+                    retrieve_many_sequence(Dict, M, Keys);
                 false ->
                     utils:log("Expected: ~p. Retrieved ~p", [dict:fetch(Key, Dict), Value]),
-                    utils:log("-- FAIL receive_many_sequence --"),
+                    utils:log("-- FAIL retrieve_many_sequence --"),
                     false
             end;
         error ->
-            utils:log("-- FAIL receive_many_sequence --"),
+            utils:log("-- FAIL retrieve_many_sequence --"),
             false
     end.
 
@@ -256,10 +333,6 @@ receive_many_sequence(Dict, M, [Key| Keys]) ->
 %% Store many same in sequence
 
 %% Store many same in parallel
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%                       TEST HELPERS YAY!!!                                %%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 rand_id(M) ->

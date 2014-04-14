@@ -23,6 +23,8 @@
           slog/3,
           hlog/2,
           hlog/3,
+          dlog/2,
+          dlog/3,
           sname/1,
           hname/1,
           modSeq/3,
@@ -42,6 +44,19 @@ log(Message) ->
 log(Message, Format) ->
   S = io_lib:format(Message, Format),
   log(S).
+
+%% Logs a message, but accepts a debug mode which turns it off or on
+dlog(Message, Debug) ->
+  case Debug of
+    true ->
+      timestamp(),
+      io:format("~s~n", [Message]);
+    _Other ->
+      ok
+  end.
+dlog(Message, Format, Debug) ->
+  S = io_lib:format(Message, Format),
+  dlog(S, Debug).
 
 %% Logging for storage processes
 slog(Message, ProcNum) -> 
