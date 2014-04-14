@@ -66,7 +66,6 @@ main([M, Name, Other]) ->
     utils:log("Connecting to ~p, result is: ~p", [OtherStr, ConnectResult]),
 
     %% Sleep to let the global names sync
-    %% timer:sleep(1000),
     global:sync(),
 
     %%Compute right place to start
@@ -81,9 +80,6 @@ main([M, Name, Other]) ->
     utils:log("Registering with name ~w", [utils:hname(NewHandlerID)]),
 
     handler:start( {Minty, PrevHandlerID, NewHandlerID, NextHandlerID} ),
-    
-    %% gen_server:start({global, utils:hname(NewHandlerID)}, handler, {Minty, PrevHandlerID, NewHandlerID, NextHandlerID}, []),
-    %% timer:sleep(1000),
 
     %% Sanity checking for debugging.
     utils:log("Registered names: ~p", [global:registered_names()]).
