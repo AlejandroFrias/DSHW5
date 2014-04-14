@@ -3,6 +3,8 @@
 %%% @author Alejandro Frias, Ravi Kumar, David Scott
 %%%
 %%% A Storage Process implementation.
+%%%
+%%% A storage process receives requests from the outside world.
 %%%--------------------------------------------------------------------
 
 
