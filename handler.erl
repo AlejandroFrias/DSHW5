@@ -415,6 +415,7 @@ updateMaxKey(Key, S) ->
 	    ?maxKey
     end.
 
+calculateMinMaxKey([]) -> {[], []};
 calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 
@@ -425,6 +426,7 @@ calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
 
 gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+    % utils:log("DATA SO FAR: ~p", [DataSoFar]),
     DataSoFar;
 
 gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
