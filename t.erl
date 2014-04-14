@@ -59,7 +59,12 @@ connect(Node) ->
 
 %% Gets the pid of the storage process
 get_pid(ProcNum) ->
-    global:whereis_name(utils:sname(ProcNum)).
+    case global:whereis_name(utils:sname(ProcNum)) of
+        undefined ->
+            utils:log("Storage Process ID ~p does not exist.", [ProcNum]);
+        Pid ->
+            Pid
+    end.
 
 %% Sends a store request and returns the Ref for it
 send_store(Key, Value, ProcID) ->
@@ -74,11 +79,11 @@ store(Key, Value, ProcID) ->
     receive
 	{Ref, stored, OldValue} ->
 	    utils:log("{~p, ~p} stored, replacing ~p.", [Key, Value, OldValue]),
-        Success = true
+        Success = {ok, OldValue}
     after
 	?TIMEOUT ->
 	    utils:log("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID]),
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -96,11 +101,11 @@ retrieve(Key, ProcID) ->
     receive
     {Ref, retrieved, Value} ->
         utils:log("Retrieved ~p from key ~p.", [Value, Key]),
-        Success = true
+        Success = {ok, Value}
     after
     ?TIMEOUT ->
         utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) ,
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -117,11 +122,11 @@ first_key(ProcID) ->
     receive
 	{Ref, result, Result} ->
 	    utils:log("First key: ~p.", [Result]),
-        Success = true
+        Success = {ok, Result}
     after
 	?TIMEOUT ->
 	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -138,11 +143,11 @@ last_key(ProcID) ->
     receive
     {Ref, result, Result} ->
         utils:log("Last key: ~p.", [Result]),
-        Success = true
+        Success = {ok, Result}
     after
     ?TIMEOUT ->
         utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -159,11 +164,11 @@ num_keys(ProcID) ->
     receive
     {Ref, result, Result} ->
         utils:log("Num keys: ~p.", [Result]),
-        Success = true
+        Success = {ok, Result}
     after
     ?TIMEOUT ->
         utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -180,11 +185,11 @@ node_list(ProcID) ->
     receive
 	{Ref, result, Result} ->
 	    utils:log("Node List: ~p.", [Result]),
-        Success = true
+        Success = {ok, Result}
     after
 	?TIMEOUT ->
 	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
-        Success = false
+        Success = error
     end,
     Success.
 
@@ -204,18 +209,46 @@ leave(ProcID) ->
 store_many_sequence(Num, M) ->
     store_many_sequence(Num, M, dict:new()).
 
-store_many_sequence(0, _M, KeyValuePairs) ->
-    utils:log("++ SUCCESS store_many_sequence Test"),
+store_many_sequence(0, M, KeyValuePairs) ->
+    case receive_many_sequence(KeyValuePairs, M) of
+        true ->
+            utils:log("++ SUCCESS store_many_sequence ++");
+        false ->
+            utils:log("-- FAIL store_many_sequence ++")
+    end,
     KeyValuePairs;
 store_many_sequence(Num, M, KeyValuePairs) ->
     {Key, Value} = rand_key_value(),
     NewKeyValuePairs = dict:store(Key, Value, KeyValuePairs),
     case store(Key, Value, rand_id(M)) of
-        true ->
+        {ok, _OldValue} ->
             store_many_sequence(Num - 1, M, NewKeyValuePairs);
-        false ->
-            utils:log("-- FAIL store_many_sequence Test --"),
+        error ->
+            utils:log("-- FAIL store_many_sequence --"),
             NewKeyValuePairs
+    end.
+
+%% One at a time, confirm that each key-value pair exists.
+receive_many_sequence(KeyValueDict, M) ->
+    receive_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict)).
+
+receive_many_sequence(_KeyValueDict, _M, []) ->
+    utils:log("++ SUCCESS receive_many_sequence"),
+    true;
+receive_many_sequence(Dict, M, [Key| Keys]) ->
+    case retrieve(Key, rand_id(M)) of
+        {ok, Value} ->
+            case dict:fetch(Key, Dict) == Value of
+                true ->
+                    receive_many_sequence(Dict, M, Keys);
+                false ->
+                    utils:log("Expected: ~p. Retrieved ~p", [dict:fetch(Key, Dict), Value]),
+                    utils:log("-- FAIL receive_many_sequence --"),
+                    false
+            end;
+        error ->
+            utils:log("-- FAIL receive_many_sequence --"),
+            false
     end.
 
 %% Store many different key-value pairs in parallel (wait for all responses at end)
@@ -230,7 +263,7 @@ store_many_sequence(Num, M, KeyValuePairs) ->
 
 
 rand_id(M) ->
-    random:uniform(utils:pow2(M)).
+    random:uniform(utils:pow2(M)) - 1.
 
 rand_key_value() ->
     Key = get_random_string(random:uniform(20) + 5, ?CHARS),
