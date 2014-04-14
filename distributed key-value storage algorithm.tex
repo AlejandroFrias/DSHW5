@@ -49,6 +49,7 @@ mathescape=true}
 \newcommand{\sh}{\tt{store\_handler}}
 \renewcommand{\sp}{\tt{storage\_process}}
 \newcommand{\gs}{\tt{gen\_server}}
+\newcommand{\ow}{outside world}
 
 \author{Alejandro Frias \and Ravi Kumar \and David Scott}
 \date{\today}
@@ -130,34 +131,67 @@ Backup Request.  Received and sent by \sh.  If it is received on the node with \
 \{backup\_request, DestID\} \\
 
 All data request message.  Received by \sp{} and sent by \sh.  When received by a \sp, respond with an \tt{all\_data\_send} message containing all this \sp's data.  & 
-\{all\_data, Pid\} \\
+\{all\_data\} \\
 
 All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to an ongoing list of data and removes the sender from the list of processes it is waiting for. If it's the last response that was being waited for, send the \tt{backup\_node} message to the next node. & 
-\{all\_data, Data, Pid\}
+\{all\_data, Data\}
 
 \end{longtable}
 
 \clearpage
 \onehalfspacing
 
-\section{Algorithm Setup}
+\section*{Algorithm Setup}
 
-\subsection{Types of Processes}
+\subsection*{Types of Processes}
 
-Our system involves two types of processes: storage processes and handlers. The storage nodes are responsible for the primary data storage in the system
+Our system involves two types of processes: storage processes and handlers. The storage nodes are responsible for the primary data storage in the system (both storing and retrieving), and the handlers are reponsible for meta-storage stuff, such as backing up of data and handling snapshot-related functionality. On a given Erlang node, there will always be exactly one handler running, and some number of storage processes. In our system, the data on a storage process is backed up by the handler on the node in front of the processes node.
 
-\section*{Our Setup and Some Correctness}
+\subsection*{Storage Processes}
+
+Storage processes in our system are responsible for receiving all messages from the outside world. When a \sp gets a store message, they forward it to the closest \sp to the destination. When the correct \sp gets the store request, it stores the data and notifies its \sh. When an \sp gets a retrieve message, it forwards it along until it gets to the correct \sp, which reports to the outside world. Finally, storage processes can easily handle \tt{node\_list} messages, as they have access to the global registry. All other messages received from the outside world are simply forwarded to the storage process's handler. A \sp has only one possible state, that of waiting for messages. For a more detailed description of what messages a \sp sends and receives and what actions it takes upon receiving these messages, refer to the message description table.
+
+In our system, a \sp stores the following information:
+\begin{description}
+\item [m] The size of the system, so that it knows what other processes it can message.
+\item [myID] The ID of the storage process.
+\item [myDict] A dictionary of data stored by the process.
+\item [myHandlerID] The ID of the node's handler, so that it can message it.
+\end{description}
+
+\subsection*{Handler}
+
+Handlers are responsible for everything else in the system. They handle all requests related to system snapshots, manage when \sp{}s should be started or stopped due to rebalancing when nodes join and leave, and keep backups of data. Specifically, the storage process for a given node backs up all data for the node behind it. If the node behind it dies, it will use this backup data to start all storage processes that died, ensuring that no data is lost. For a more detailed description of what messages a \sh sends and receives and what actions it takes upon receiving these messages, refer to the message description table.
+
+In our system, a \sh stores the following information:
+\begin{description}
+\item [m] The size of the system.
+\item [myID] The ID of the handler process.
+\item [nextNodeID] The ID of the next handler in the system. The handler uses this to send messages around the ring and to send data to the next node to be backed up.
+\item [prevNodeID] The ID of the previous handler in the system, which this node is monitoring for failure.
+\item [myBackup] A backup of the data held by all storage processes on the previous node.
+\item [minKey] The minimum key in the backup data.
+\item [maxKey] The maximum key in the backup data.
+\item [myBackupSize] The size of the backup data.
+\item [myInProgressRefs] A list of snapshot computations we have started by sending them around the ring. If we get a snapshot message with a ref in this list, we know the computation is finished and can send the result to the outside world.
+\item [myMonitoredNode] The node object we are monitoring for failure.
+\item [myHandlerID] The ID of the node's handler, so that it can message it.
+\end{description}
+
+\section*{Algorithm Description \& Correctness}
 The setup:
 Each node has a backup of the node preceding it, held by a non-storage process for that node that we call the handler, since it also handles much of the inter-node communication. Each node is listening to the preceding node for crashes. In this way each node has one node that it is responsible for and one that is responsible for it.
 
-When a node enters the system, it does so in the middle of the node that is responsible for the most storage processes (breaking ties arbitrarily by process ID number). The new node grabs the entire backup data of the node in front of it (since this is backing up the data that the new node needs access to), and in the process tells that next node to delete the first half of its backup data since the new node will be backing it up. The new node uses the first half of that data (that is, data corresponding to processes behind it) to create its backup and the other half to start the storage processes it will be responsible for. Additionally, it messages the node behind it to stop running the relevant processes so the new node can run them. In this way, a joining node only needs to talk to two other nodes, the ones that it will be adjacent to. 
+When a node enters the system, it does so in the middle of the node that is responsible for the most storage processes (breaking ties arbitrarily by process ID number). The new node grabs the entire backup data of the node in front of it (since this is backing up the data that the new node's \sp{}s will be responsible for); it also tells that next node to delete the first half of its backup data since the new node will be backing it up. The new node uses the first half of that data (that is, data corresponding to processes behind it) to create its backup and the other half to start the storage processes it will be responsible for. Additionally, it messages the node behind it to stop running the relevant processes so the new node can run them. In this way, a joining node only needs to talk to two other nodes, the ones that it will be adjacent to. Thus, our system maintains its functionality and correctness when new node's join, as no information is lost and everything stays backed up.
 
-When a node crashes or leaves, the next node finds out, as it isthe only one listening to it. Since it has the entire backup data of that node, it can immediately startup all of the processes that just died. So it immediately takes over for the dead node, changing it's own node number to the one of the deceased. Then, since we lost some backup data of the dead node, it sends a request around the ring to the node just previous to it to get all the data on that node's processes. This takes a maximum of $m$ messages, where there are $2^m$ processes. In this way we can get the system back up and running immediately and then, while still accepting requests from the outside world, start rebuilding the back up data.
+When a node crashes or leaves, the next node finds out, as the next node is the only one listening to it. Since it has the entire backup data of that node, it can immediately startup all of the processes that just died. So it immediately takes over for the dead node, changing its own node number to the one of the deceased. Then, since we lost the backup data of the dead node, it sends a request around the ring to the node just previous to it to get all the data on that node's processes. This takes a maximum of $m$ messages, where there are $2^m$ processes. In this way we can get the system back up and running immediately and then, while still accepting requests from the outside world, start rebuilding the back up data. When a node dies, the node in front of it takes over for it. This method ensures that our system is correct when nodes die, as the node in front of it has the full backup data for the node that died. Thus, our system works correctly even when nodes die, and doesn't lose any data.
 
-To ensure redundancy, a storage process never communicates back to the outside world directly when a store request comes in. Instead, after the store request is forwarded to the correct storage process, that process stores the new key-value pair and tells its handler process that it did so. The handler then sends this to the next node to be backed up. That next node will then notify the outside world that the value has been stored after it stores the backup. This ensures every store request has been backed up before letting the outside world know. Also, very few messages need to be passed. It takes a maximum of $m$ messages to get the store request to the right storage process and then a couple more after that to back it up and respond to the outside world, since the next node is guaranteed to be visible to the node that has that storage process. This is part of why we chose to have nodes store the back up of the previous node.
+To ensure redundancy, a storage process never communicates back to the outside world directly when a store request comes in. Instead, after the store request is forwarded to the correct storage process, that process stores the new key-value pair and tells its handler process that it did so. The handler then sends this to the next node to be backed up. That next node will then notify the outside world that the value has been stored after it stores the backup. This ensures every store request has been backed up before letting the outside world know that the store is completed. Also, very few messages need to be passed. It takes a maximum of $m$ messages to get the store request to the right storage process and then a couple more after that to back the data up and respond to the outside world, since the next node is guaranteed to be visible to the node that has that storage process. This is part of why we chose to have nodes store the back up of the previous node.
 
-Messages about the system, like first-key and last-key, are forwarded directly to the handler process to take care of. The process will start a message that will go around the ring of nodes and will store that node's contribution to calculating the requested computation. Since each handler has a backup of the previous node, it doesn't need to communicate directly with each of the processes, but instead just sees if the first-key that has been found is better or worse than it's first key, or similar comparison for the other key requests. Once a handler gets it's message back, it can tell the outside person the result of the snapshot. These system processes scale with the number of nodes and are guaranteed to work if the a node doesn't crash mid computation. Each node's computation will be constant since it can keep track of the first key, the last key, and the number of keys in it's back up as store requests come in. And since a completely stored value is only considered complete once the handler has backed up one up, we're guaranteed to be accurate.
+Messages about the system, like first-key and last-key, are forwarded directly to the handler process to take care of. The process will start a message that will go around the ring of nodes and will store that node's contribution to calculating the requested computation. Since each handler has a backup of the previous node, it doesn't need to communicate directly with each of the processes, but instead just sees if the first-key that has been found is better or worse than it's first key, or similar comparison for the other key requests. Once a handler gets its message back, it can tell the outside person the result of the snapshot. The runtime of these system processes scales with the number of nodes. They are guaranteed to work if the a node doesn't crash mid computation. Each node's computation will be constant since it can keep track of the first key, the last key, and the number of keys in it's back up as store requests come in. And since a completely stored value is only considered complete once the handler has backed up one up, we're guaranteed to be accurate.
 
-Retrieve requests are the only messages that storage processes deal with completely without the handler. They simply forward the message along the closest chord or if they have the value (or should have the value), return the result to the outside world.
+Retrieve requests are the only messages that don't involve a handler at all. They simply forward the message along the closest chord or if they have the value (or should have the value), return the result to the outside world.
+
+Overall, our system's correctness argument is fairly basic. The system works correctly when the system remains static, as store requests work and ensure that the data is both in the correct storage node and backed up before they finish. When nodes join, we ensure that all data remains backed up, so that the state of our systems stays correct. Finally, when nodes die, other nodes immediately step in and replace the dead storage processes using the backup data, and quickly work to replace the backup that was lost, so that all data in the system is backed up. Thus, our distributed hashtable algorithm is correct even in the face of node's joining and leaving.
 
 \end{document}
