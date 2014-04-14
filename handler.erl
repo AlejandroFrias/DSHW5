@@ -347,7 +347,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     %% Request new backup data
     utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
-		     {self(), make_ref(), backupRequest, ?prevNodeID} ),
+		     {self(), backupRequest, ?prevNodeID} ),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
     {noreply, S#state{myID = ?prevNodeID }};
 
