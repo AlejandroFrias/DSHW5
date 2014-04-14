@@ -297,7 +297,7 @@ handle_cast({_Pid, _Ref, leave}, S) ->
     % {stop, normal, "Asked to leave by outside world", S};
     erlang:halt();
 
-handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
+handle_cast({_Ref, heresTheBackup, NewPrevID, NewBackupData}, S) ->
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
     {noreply, S#state{prevNodeID = NewPrevID,
@@ -311,7 +311,7 @@ handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
-    gen_server:cast( Pid, {Ref, ?myID, AllMyData} ),
+    gen_server:cast( Pid, {Ref, heresTheBackup, ?myID, AllMyData} ),
     {noreply, S};
 
 handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
@@ -431,7 +431,7 @@ gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
     NextData = gen_server:call( {global, utils:sname(NextStorageID)},
                                 {all_data} ),
     gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
-                   [DataSoFar | NextData], M ).
+                   DataSoFar ++ NextData, M ).
 
 
 
