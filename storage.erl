@@ -25,9 +25,9 @@
 -define(m, S#state.m).
 -define(myID, S#state.myID).
 -define(myDict, S#state.myDict).
--define(myHandlerID, S#state.myHandlerID).
+-define(myHandlerPid, S#state.myHandlerPid).
 
--record(state, {m, myID, myDict, myHandlerID}).
+-record(state, {m, myID, myDict, myHandlerPid}).
 
 
 %%%============================================================================
@@ -65,10 +65,10 @@ distTo(ID, S) ->
 %%% GenServer Callbacks (For the rest of the code)
 %%%============================================================================
 
-init( {M, MyID, MyHandlerID, MyDict} ) ->
-    utils:slog( "Starting on node ~w.", [MyHandlerID], MyID),
+init( {M, MyID, MyHandlerPid, MyDict} ) ->
+    utils:slog( "Starting on node ~w.", [MyHandlerPid], MyID),
     process_flag(trap_exit, true),
-    { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
+    { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerPid = MyHandlerPid} }.
 
 %%Handle call messages, Send all our data to our handler
 handle_call({all_data}, _From, S) ->
@@ -99,7 +99,7 @@ handle_cast(Msg = {Pid, Ref, store, Key, Value}, S) ->
 			NewDict = dict:store(Key, Value, OldDict),
 
 			%Notify our handler about it
-			gen_server:cast({global, utils:hname(?myHandlerID)}, {Pid, Ref, backup_store, Key, Value, ?myID}),
+			gen_server:cast(?myHandlerPid, {Pid, Ref, backup_store, Key, Value, ?myID}),
 
 			{noreply, S#state{myDict = NewDict}};
 		false ->
@@ -144,17 +144,17 @@ handle_info(Msg = {_Pid, _Ref, retrieve, _Key}, S) ->
 
 handle_info(Msg = {_Pid, _Ref, first_key}, S) ->
 	utils:slog("Received first_key request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
+	gen_server:cast(?myHandlerPid, Msg),
 	{noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, last_key}, S) ->
 	utils:slog("Received last_key request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
+	gen_server:cast(?myHandlerPid, Msg),
 	{noreply, S};
 
 handle_info(Msg = {_Pid, _Ref, num_keys}, S) ->
 	utils:slog("Received num_keys request from outside world, forwarding to handler.", ?myID),
-	gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
+	gen_server:cast(?myHandlerPid, Msg),
 	{noreply, S};
 
 handle_info({Pid, Ref, node_list}, S) ->
@@ -167,7 +167,7 @@ handle_info({Pid, Ref, node_list}, S) ->
 
 handle_info(Msg = {_Pid, _Ref, leave}, S) ->
   utils:slog("Received leave request from outside world, forwarding to handler.", ?myID),
-  gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
+  gen_server:cast(?myHandlerPid, Msg),
   {noreply, S};
 
 
