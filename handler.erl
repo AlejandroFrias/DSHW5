@@ -289,6 +289,14 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 	    {noreply, S}
     end;
 
+handle_cast({_Pid, _Ref, leave}, S) ->
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+    terminateProcs(ProcsToTerminate),
+    utils:hlog("Asked to leave by outside world.", ?myID),
+
+    % {stop, normal, "Asked to leave by outside world", S};
+    erlang:halt();
+
 handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
@@ -310,13 +318,6 @@ handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
-handle_cast({_Pid, _Ref, leave}, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
-    terminateProcs(ProcsToTerminate),
-    utils:hlog("Asked to leave by outside world.", ?myID),
-
-    % {stop, normal, "Asked to leave by outside world", S};
-    erlang:halt();
 
 handle_cast(Msg, S) ->
     utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
