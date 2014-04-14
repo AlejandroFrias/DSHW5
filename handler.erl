@@ -290,7 +290,8 @@ handle_cast({_Pid, _Ref, leave}, S) ->
     % {stop, normal, "Asked to leave by outside world", S};
     erlang:halt();
 
-handle_cast({_Ref, heresTheBackup, NewPrevID, NewBackupData}, S) ->
+%% Replace the backup data with the new backup data
+handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
     {noreply, S#state{prevNodeID = NewPrevID,
@@ -300,20 +301,30 @@ handle_cast({_Ref, heresTheBackup, NewPrevID, NewBackupData}, S) ->
 		       myBackupSize = BackupSize
 		      }};
 
-handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
+handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
-    gen_server:cast( Pid, {Ref, heresTheBackup, ?myID, AllMyData} ),
+    gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
     {noreply, S};
 
-handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
+handle_cast( Msg = {_, backupRequest, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
 
+handle_cast( {appendBackup, BackupData}, S ) ->
+	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
+	NewBackupData = BackupData ++ ?myBackup,
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
+	{noreply, S#state{myBackup = NewBackupData,
+					  myBackupSize = length(NewBackupData),
+					  minKey = NewMinKey,
+					  maxKey = NewMaxKey
+	                   }};
+
 handle_cast(Msg, S) ->
-    utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
+    utils:hlog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
     {noreply, S}.
 
 
@@ -325,10 +336,18 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 		   "of the backups, and then change my ID to the dead node's ID.", 
 	       [Node, ?prevNodeID], ?myID),
     global:unregister_name( utils:hname(?myID) ),
+
     %% start the necessary storage processes from backup    
     startAllSPs(?prevNodeID, ?myID, ?m, ?myBackup),
+
+    %% Transfer our backup data to next node
+    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
+    gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup}),
+    
+    %% Request new backup data
+    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
-		     {self(), make_ref(), gimmeTheBackup, ?prevNodeID} ),
+		     {self(), make_ref(), backupRequest, ?prevNodeID} ),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
     {noreply, S#state{myID = ?prevNodeID }};
 
