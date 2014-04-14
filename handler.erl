@@ -315,7 +315,7 @@ handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
 handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
     % get all my storage nodes' data
-    AllMyData = dict:new(),
+    AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
     gen_server:cast( Pid, {Ref, ?myID, AllMyData} ),
     {noreply, S};
 
@@ -431,7 +431,7 @@ updateMaxKey(Key, S) ->
 	    ?maxKey
     end.
 
-calculateMinMaxKey( [{FirstKey,_,_}|Rest] ) ->
+calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 
 calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
@@ -440,4 +440,14 @@ calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
 calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
 
-    
+gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+    DataSoFar;
+
+gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
+    NextData = gen_server:call( {global, utils:sname(NextStorageID)},
+                                {all_data} ),
+    gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
+                   [DataSoFar | NextData], M ).
+
+
+
