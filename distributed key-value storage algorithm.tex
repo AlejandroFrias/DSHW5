@@ -140,6 +140,12 @@ All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the r
 \clearpage
 \onehalfspacing
 
+\section{Algorithm Setup}
+
+\subsection{Types of Processes}
+
+Our system involves two types of processes: storage processes and handlers. The storage nodes are responsible for the primary data storage in the system
+
 \section*{Our Setup and Some Correctness}
 The setup:
 Each node has a backup of the node preceding it, held by a non-storage process for that node that we call the handler, since it also handles much of the inter-node communication. Each node is listening to the preceding node for crashes. In this way each node has one node that it is responsible for and one that is responsible for it.

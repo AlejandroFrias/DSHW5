@@ -80,7 +80,7 @@ init({M, MyID}) ->
     %% net_kernel:start([node(), shortnames]),
     %%ConnectResult = net_kernel:connect_node(OriginProcess),
     %%utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
-    timer:sleep(1000),
+    %timer:sleep(1000),
     utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
 
     %% Start all the processes
