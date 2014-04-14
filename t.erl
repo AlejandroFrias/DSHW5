@@ -1,16 +1,29 @@
+%%% ----------------------------------------------------------------------------
+%%% CSCI182E - Distributed Systems
+%%% @author Alejandro Frias, Ravi Kumar, David Scott
+%%%
+%%% Tests and stuff.
+%%% 
+%%% Functions for by-hand testing as well as more built out tests are here
+%%%-----------------------------------------------------------------------------
+
+
+
 -module (t).
 
 -export([initAsh/0,
          init/0,
+         init/1,
          connect/1,
-         getPid/1,
+         get_pid/1,
          store/3,
          retrieve/2,
-         firstKey/1,
-         lastKey/1,
-         numKeys/1,
-         nodeList/1,
-         leave/1]).
+         first_key/1,
+         last_key/1,
+         num_keys/1,
+         node_list/1,
+         leave/1,
+         store_many_sequence/2]).
 
 -define (TIMEOUT, 10000).
 
@@ -33,118 +46,193 @@ init() ->
     random:seed(A1, A2, A3),
     {A1, A2, A3}.
 
+%% If you desire to init with a given seed. Good for reproducing tests
+init(Seed = {A1, A2, A3}) ->
+    _ = os:cmd("epmd -daemon"),
+    net_kernel:start([testy, shortnames]),
+    utils:log("Seeding random with ~p", [Seed]),
+    random:seed(A1, A2, A3).
+
 %% Used to (re)connect to the original node for global registry access.
 connect(Node) ->
     net_kernel:connect_node(Node).
 
 %% Gets the pid of the storage process
-getPid(ProcNum) ->
+get_pid(ProcNum) ->
     global:whereis_name(utils:sname(ProcNum)).
+
+%% Sends a store request and returns the Ref for it
+send_store(Key, Value, ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, store, Key, Value},
+    Ref.
 
 %% Sends store request and waits for response
 store(Key, Value, ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, store, Key, Value},
+    Ref = send_store(Key, Value, ProcID),
     receive
 	{Ref, stored, OldValue} ->
-	    utils:log("{~p, ~p} stored, replacing ~p.", [Key, Value, OldValue])
+	    utils:log("{~p, ~p} stored, replacing ~p.", [Key, Value, OldValue]),
+        Success = true
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID]) 
-    end.
+	    utils:log("Timed out waiting for store confirmation of {~p, ~p}. sent to storage~p.", [Key, Value, ProcID]),
+        Success = false
+    end,
+    Success.
+
+
+%% Sends a retrieve request and returns the Ref for it
+send_retrieve(Key, ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, retrieve, Key},
+    Ref.
 
 %% Sends retrieve request and waits for response
 retrieve(Key, ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, retrieve, Key},
+    Ref = send_retrieve(Key, ProcID),
     receive
-	{Ref, retrieved, Value} ->
-	    utils:log("Retrieved ~p from key ~p.", [Value, Key])
+    {Ref, retrieved, Value} ->
+        utils:log("Retrieved ~p from key ~p.", [Value, Key]),
+        Success = true
     after
-	?TIMEOUT ->
-	    utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) 
-    end.
+    ?TIMEOUT ->
+        utils:log("Timed out waiting for retrieved data of key ~p sent to storage~p.", [Key, ProcID]) ,
+        Success = false
+    end,
+    Success.
+
+%% Sends a first_key request and returns the Ref for it
+send_first_key(ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, first_key, ProcID},
+    Ref.
 
 %% Sends first_key request and waits for response
-firstKey(ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, first_key},
+first_key(ProcID) ->
+    Ref = send_first_key(ProcID),
     receive
 	{Ref, result, Result} ->
-	    utils:log("First key: ~p.", [Result])
+	    utils:log("First key: ~p.", [Result]),
+        Success = true
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
-    end.
+	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        Success = false
+    end,
+    Success.
+
+%% Sends a last_key request and returns the Ref for it
+send_last_key(ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, last_key, ProcID},
+    Ref.
 
 %% Sends last_key request and waits for response
-lastKey(ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, last_key},
+last_key(ProcID) ->
+    Ref = send_last_key(ProcID),
     receive
     {Ref, result, Result} ->
-        utils:log("Last key: ~p.", [Result])
+        utils:log("Last key: ~p.", [Result]),
+        Success = true
     after
     ?TIMEOUT ->
-        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
-    end.
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        Success = false
+    end,
+    Success.
+
+%% Sends a num_keys request and returns the Ref for it
+send_num_keys(ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, num_keys, ProcID},
+    Ref.
 
 %% Sends num_keys request and waits for response
-numKeys(ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, num_keys},
+num_keys(ProcID) ->
+    Ref = send_num_keys(ProcID),
     receive
     {Ref, result, Result} ->
-        utils:log("Num keys: ~p.", [Result])
+        utils:log("Num keys: ~p.", [Result]),
+        Success = true
     after
     ?TIMEOUT ->
-        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
-    end.
+        utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        Success = false
+    end,
+    Success.
+
+%% Sends a node_list request and returns the Ref for it
+send_node_list(ProcID) ->
+    Ref = make_ref(),
+    Dest = get_pid(ProcID),
+    Dest ! {self(), Ref, node_list, ProcID},
+    Ref.
 
 %% Sends node_list request and waits for response
-nodeList(ProcID) ->
-    Ref = make_ref(),
-    Dest = getPid(ProcID),
-    Dest ! {self(), Ref, node_list},
+node_list(ProcID) ->
+    Ref = send_node_list(ProcID),
     receive
 	{Ref, result, Result} ->
-	    utils:log("Node List: ~p.", [Result])
+	    utils:log("Node List: ~p.", [Result]),
+        Success = true
     after
 	?TIMEOUT ->
-	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) 
-    end.
+	    utils:log("Timed out waiting for result. sent to storage~p.", [ProcID]) ,
+        Success = false
+    end,
+    Success.
 
 %% Sends leave request
 leave(ProcID) ->
     Ref = make_ref(),
-    Dest = getPid(ProcID),
+    Dest = get_pid(ProcID),
     Dest ! {self(), Ref, leave}.
 
-%% Store many different in sequence
-store_many_sequence(Num) ->
-    done.
-    
-store_many_sequence(0, KeyValuePairs) ->
-    utils:log("~p"),
-    KeyValuePairs.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%                              TESTS YAY!!!                                %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%% Store many different in parallel
+%% Store many different key-value pairs in sequence (wait for response after every store)
+%% Num is the number of store requests to make
+store_many_sequence(Num, M) ->
+    store_many_sequence(Num, M, dict:new()).
+
+store_many_sequence(0, _M, KeyValuePairs) ->
+    utils:log("++ SUCCESS store_many_sequence Test"),
+    KeyValuePairs;
+store_many_sequence(Num, M, KeyValuePairs) ->
+    {Key, Value} = rand_key_value(),
+    NewKeyValuePairs = dict:store(Key, Value, KeyValuePairs),
+    case store(Key, Value, rand_id(M)) of
+        true ->
+            store_many_sequence(Num - 1, M, NewKeyValuePairs);
+        false ->
+            utils:log("-- FAIL store_many_sequence Test --"),
+            NewKeyValuePairs
+    end.
+
+%% Store many different key-value pairs in parallel (wait for all responses at end)
 
 %% Store many same in sequence
 
 %% Store many same in parallel
 
-randProc(M) ->
-    ID = random:uniform(utils:pow2(M)),
-    utils:sname(ID).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%                       TEST HELPERS YAY!!!                                %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-randKeyValue() ->
+
+rand_id(M) ->
+    random:uniform(utils:pow2(M)).
+
+rand_key_value() ->
     Key = get_random_string(random:uniform(20) + 5, ?CHARS),
     Value = get_random_string(random:uniform(20) + 5, ?CHARS),
     {Key, Value}.
