@@ -66,7 +66,7 @@ distTo(ID, S) ->
 %%%============================================================================
 
 init( {M, MyID, MyHandlerPid, MyDict} ) ->
-    utils:slog( "Starting on node ~w.", [MyHandlerPid], MyID),
+    utils:slog( "Starting with handler Pid ~w.", [MyHandlerPid], MyID),
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerPid = MyHandlerPid} }.
 
