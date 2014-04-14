@@ -269,6 +269,7 @@ handle_info({'DOWN', Ref, process, _Pid, _}, S) when Ref == ?myMonitorRef ->
 	% The node behind you died. Time to take it's place
 	% and start up those processes and get some back up data.
 	utils:hlog("Oh no! The previous node died!", ?myID),
+	
 	{noreply, S};
 
 handle_info(Msg, S) ->

@@ -36,8 +36,8 @@ main([M, Name]) ->
     net_kernel:start([list_to_atom(Name), shortnames]),
 
 	%Start the SH
-	utils:log("Starting storage handler with ID ~w", [0]),
-	utils:log("Registering with name ~w", [utils:hname(0)]),
+	utils:log("Starting storage handler with ID ~p", [0]),
+	utils:log("Registering with name ~p", [utils:hname(0)]),
 	
 	gen_server:start({global, utils:hname(0)}, handler, {Minty, 0}, []),
 
@@ -47,13 +47,13 @@ main([M, Name, Other]) ->
 	Minty = list_to_integer(M),
 
   % Erlang networking boilerplate 
-  utils:log("Starting node with name ~w", [Name]),
+  utils:log("Starting node with name ~p", [Name]),
   _ = os:cmd("epmd -daemon"),
   net_kernel:start([list_to_atom(Name), shortnames]),
 
   %Connect to the specified node
   ConnectResult = net_kernel:connect_node(list_to_atom(Other)),
-  utils:log("Connecting to ~w, result is: ~w", [Other, ConnectResult]),
+  utils:log("Connecting to ~p, result is: ~p", [Other, ConnectResult]),
 
   %Sleep to let the global names sync
   timer:sleep(1000),
