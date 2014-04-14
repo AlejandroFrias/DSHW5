@@ -138,11 +138,6 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 						   myBackup = NewBackup,
 						   myMonitoredNode = NewMonitoredNode}};
 
-handle_call({_Pid, _Ref, leave}, _From, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
-    terminateProcs(ProcsToTerminate),
-    utils:hlog("Asked to leave by outside world.", ?myID),
-    {stop, normal, "Asked to leave by outside world", S};
     
 
 handle_call(Msg, _From, S) ->
@@ -225,6 +220,7 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 handle_cast({Pid, Ref, last_key}, S) ->
     NextHandler = ?nextNodeID,
     MyLastKey = ?maxKey, 
+
     OldInProgressRefs = ?myInProgressRefs,
 
     utils:hlog("Received message from my SP looking for last_key.", ?myID),
@@ -313,6 +309,14 @@ handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
 handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
+
+handle_cast({_Pid, _Ref, leave}, S) ->
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+    terminateProcs(ProcsToTerminate),
+    utils:hlog("Asked to leave by outside world.", ?myID),
+
+    % {stop, normal, "Asked to leave by outside world", S};
+    erlang:halt();
 
 handle_cast(Msg, S) ->
     utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),

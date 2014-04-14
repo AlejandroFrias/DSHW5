@@ -167,7 +167,7 @@ handle_info({Pid, Ref, node_list}, S) ->
 
 handle_info(Msg = {_Pid, _Ref, leave}, S) ->
   utils:slog("Received leave request from outside world, forwarding to handler.", ?myID),
-  gen_server:call({global, utils:hname(?myHandlerID)}, Msg),
+  gen_server:cast({global, utils:hname(?myHandlerID)}, Msg),
   {noreply, S};
 
 
