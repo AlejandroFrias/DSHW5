@@ -70,6 +70,14 @@ init( {M, MyID, MyHandlerID, MyDict} ) ->
     process_flag(trap_exit, true),
     { ok, #state{m = M, myID = MyID, myDict = MyDict, myHandlerID = MyHandlerID} }.
 
+%%Handle call messages, Send all our data to our handler
+handle_call({all_data}, _From, S) ->
+  utils:slog("Received all_data message from my handler!"),
+  ListDict = dict:to_list(?myDict),
+  ListWithID = [{Key, Value, ?myID} || {Key, Value} <- ListDict],
+  utils:slog("  Replying with my data."),
+  {reply, ListWithID, S};
+
 handle_call(terminate, _From, S) ->
   utils:slog("Goodbye.", ?myID),
   {stop, normal, terminated, S};
@@ -78,7 +86,7 @@ handle_call(Msg, _From, S) ->
 	{noreply, S}.
 
 
-%%%%%%%%%% END ASYNCRHONOUS MESSAGES FROM OTHER STORAGE PROCESSES %%%%%%%%%%%%%
+%%%%%%%%%% END SYNCRHONOUS MESSAGES FROM OTHER STORAGE PROCESSES %%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%% MESSAGES FROM THE CONTROLLER %%%%%%%%%%%%%%%%%%%%%%%%%%%
 

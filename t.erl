@@ -150,3 +150,4 @@ get_random_string(Length, AllowedChars) ->
                                AllowedChars)]
                         ++ Acc
                 end, [], lists:seq(1, Length)).
+

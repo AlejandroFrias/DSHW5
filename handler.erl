@@ -72,9 +72,9 @@ start( {Minty, PrevHandlerID, NewHandlerID, NextHandlerID} ) ->
 %% Start ID will always be 0
 init({M, MyID}) ->
     %% net_kernel:start([node(), shortnames]),
-    %%ConnectResult = net_kernel:connect_node(OriginProcess),
-    %%utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
-    timer:sleep(1000),
+    %% ConnectResult = net_kernel:connect_node(OriginProcess),
+    %% utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
+    global:sync(),
     utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
 
     %% Start all the processes
@@ -87,7 +87,7 @@ init({M, MyID}) ->
 		myMonitoredNode = erlang:node()
 	       }}; %Fix these keys
 
-%%Start up everything as a non-first node in a system
+%% Start up everything as a non-first node in a system
 init({M, PrevNodeID, MyID, NextNodeID}) -> 
     utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
     
@@ -143,6 +143,7 @@ handle_call({_Pid, _Ref, leave}, _From, S) ->
     terminateProcs(ProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
+    
 
 handle_call(Msg, _From, S) ->
     utils:hlog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
@@ -184,7 +185,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 			      maxKey = NewMaxKey} }
     end;
 
-%%Getting a message from one of our SPs looking for the first key
+%% Getting a message from one of our SPs looking for the first key
 handle_cast({Pid, Ref, first_key}, S) ->
     NextHandler = ?nextNodeID,
     MyFirstKey = ?minKey, 
@@ -198,7 +199,7 @@ handle_cast({Pid, Ref, first_key}, S) ->
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about first keys
+%% Getting a message from another handler about first keys
 handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
     InProgressRefs = ?myInProgressRefs,
 
@@ -220,7 +221,7 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 	    {noreply, S}
     end;
 
-%%Getting a message from one of our SPs looking for the last key
+%% Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, last_key}, S) ->
     NextHandler = ?nextNodeID,
     MyLastKey = ?maxKey, 
@@ -234,7 +235,7 @@ handle_cast({Pid, Ref, last_key}, S) ->
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about last keys
+%% Getting a message from another handler about last keys
 handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
     InProgressRefs = ?myInProgressRefs,
 
@@ -257,7 +258,7 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 	    {noreply, S}
     end;
 
-%%Getting a message from one of our SPs looking for the last key
+%% Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, num_keys}, S) ->
     NextHandler = ?nextNodeID,
     MyNumKeys = ?myBackupSize, 
@@ -271,7 +272,7 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about last keys
+%% Getting a message from another handler about last keys
 handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
     case lists:member(Ref, ?myInProgressRefs) of
 	true -> 
@@ -292,12 +293,22 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 	    {noreply, S}
     end;
 
+handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
+    BackupSize = erlang:length(NewBackupData),
+    {noreply, S#state{prevNodeID = NewPrevID,
+		       myBackup = NewBackupData,
+		       minKey = NewMinKey,
+		       maxKey = NewMaxKey,
+		       myBackupSize = BackupSize
+		      }};
+
 handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
     % get all my storage nodes' data
-    AllMyData = dict:new(),
-    NewNextID = gen_server:call( Pid, {Ref, ?myID, AllMyData} ),
-    {noreply, S=state#{nextNodeID = NewNextID}};
+    AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
+    gen_server:cast( Pid, {Ref, ?myID, AllMyData} ),
+    {noreply, S};
 
 handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
@@ -319,19 +330,8 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), make_ref(), gimmeTheBackup, ?prevNodeID} ),
     %% start the necessary storage processes from backup    
-    
-    global:register_name( utils:hname(?prevNodeID) ),
-    {noreply, S#state{myID = ?prevNodeID };
-
-
-% Sent from previous node when it dies (since we have a monitor on it)
-handle_info({'DOWN', Ref, process, _Pid, _}, S) when Ref == ?myMonitorRef ->
-	% The node behind you died. Time to take it's place
-	% and start up those processes and get some back up data.
-	utils:hlog("Oh no! The previous node died!", ?myID),
-	
-	{noreply, S};
-
+    startAllSPs(?prevNodeID, ?myID, ?m, ?myBackup),
+    {noreply, S#state{myID = ?prevNodeID }};
 
 handle_info(Msg, S) ->
     utils:hlog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
@@ -408,4 +408,24 @@ updateMaxKey(Key, S) ->
 	false ->
 	    ?maxKey
     end.
+
+calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
+    calculateMinMaxKey(Rest, FirstKey, FirstKey).
+
+calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
+    calculateMinMaxKey(Rest, max(MaxKey, NextKey), min(MinKey, NextKey));
+
+calculateMinMaxKey([], MaxKey, MinKey) ->
+    {MinKey, MaxKey}.
+
+gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+    DataSoFar;
+
+gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
+    NextData = gen_server:call( {global, utils:sname(NextStorageID)},
+                                {all_data} ),
+    gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
+                   [DataSoFar | NextData], M ).
+
+
 
