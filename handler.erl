@@ -256,15 +256,10 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 
 %% Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, num_keys}, S) ->
-    NextHandler = ?nextNodeID,
-    MyNumKeys = ?myBackupSize, 
-    OldInProgressRefs = ?myInProgressRefs,
-
     utils:hlog("Received message from my SP looking for num_keys.", ?myID),
-
-    NewInProgressRefs = [Ref | OldInProgressRefs],
-
-    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
+    NewInProgressRefs = [Ref | ?myInProgressRefs],
+    utils:hlog("Sending num_key request to be computed. Starting at size: ~p", [?myBackupSize], ?myID)
+    gen_server:cast({global, utils:hname(?nextNodeID)}, {Pid, Ref, num_keys, ?myBackupSize}),
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
@@ -281,10 +276,8 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 	    {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 	false ->
 	    utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
-
-	    NextHandler = ?nextNodeID,
-	    NewNumKeys = ?myInProgressRefs + ComputationSoFar,
-	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
+	    NewNumKeys = ?myBackupSize + ComputationSoFar,
+	    gen_server:cast({global, utils:hname(?nextNodeID,)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 	    {noreply, S}
     end;
