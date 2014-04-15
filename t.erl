@@ -232,7 +232,7 @@ leave(ProcID, M, Debug) ->
     utils:dlog("Telling storage~p to leave.", [ProcID], Debug),
     {BeforeNumKeys, BeforeFirstKey, BeforeLastKey} = get_state(M),
     {ok, BeforeNodeList} = node_list(ProcID, false),
-    BeforeStorageProcIDs = lists:sort([get_pid(N) || N <- global:registered_names(), utils:isStorage(N)]),
+    BeforeStorageProcIDs = lists:sort([utils:getID(N) || N <- global:registered_names(), utils:isStorage(N)]),
 
     Ref = make_ref(),
     Dest = get_pid(ProcID),
@@ -241,7 +241,7 @@ leave(ProcID, M, Debug) ->
 
     {AfterNumKeys, AfterFirstKey, AfterLastKey} = get_state(M),
     {ok, AfterNodeList} = node_list(ProcID, false),
-    AfterStorageProcIDs = lists:sort([get_pid(N) || N <- global:registered_names(), utils:isStorage(N)]),
+    AfterStorageProcIDs = lists:sort([utils:getID(N) || N <- global:registered_names(), utils:isStorage(N)]),
 
     NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
     FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
