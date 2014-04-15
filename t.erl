@@ -252,8 +252,8 @@ test_store_basic(Num, M) ->
 
     {ok, Dict} = store_many_sequence(Num, M),
 
-    {MinKey, _Value} = lists:min(dict:to_list(Dict)),
-    {MaxKey, _Value} = lists:max(dict:to_list(Dict)),
+    {MinKey, _} = lists:min(dict:to_list(Dict)),
+    {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
