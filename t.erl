@@ -22,7 +22,7 @@
          last_key/1,
          num_keys/1,
          node_list/1,
-         leave/1,
+         leave/2,
          test_store_basic/2,
          test_empty/1,
          test_back_up/3,
@@ -225,10 +225,10 @@ node_list(ProcID, Debug) ->
     Success.
 
 %% Sends leave request
-leave(ProcID) ->
-    leave(ProcID, true).
+leave(ProcID, M) ->
+    leave(ProcID, M, true).
 
-leave(ProcID, Debug) ->
+leave(ProcID, M, Debug) ->
     utils:dlog("Telling storage~p to leave.", [ProcID], Debug),
     {BeforeNumKeys, BeforeFirstKey, BeforeLastKey} = get_state(M),
     {ok, BeforeNodeList} = node_list(ProcID, false),
@@ -254,8 +254,8 @@ leave(ProcID, Debug) ->
             utils:dlog("Leave was successful.", Debug),
             true;
         false ->
-            utils:log("FAIL leave. NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p LeaveSuccess: ~p StorageSuccess: ~p",
-                [NumKeySuccess, FirstKeySuccess, LastKeySuccess, LeaveSuccess, StorageSuccess]),
+            utils:log("FAIL leave. NumKeysSuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p LeaveSuccess: ~p StorageSuccess: ~p",
+                [NumKeysSuccess, FirstKeySuccess, LastKeySuccess, LeaveSuccess, StorageSuccess]),
             false
     end.
 
@@ -313,7 +313,7 @@ test_back_up(Num, Kill, M) ->
     {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
     {ok, Dict} = store_many_sequence(Num, M),
 
-    LeaveSuccesses = [leave(rand_id(M), false) || _X <- lists:seq(1, Kill)],
+    LeaveSuccesses = [leave(rand_id(M), M, false) || _X <- lists:seq(1, Kill)],
     LeaveSuccess = not lists:member(false, LeaveSuccesses),
     
     {MinKey, _} = lists:min(dict:to_list(Dict)),

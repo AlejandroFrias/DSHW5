@@ -305,7 +305,7 @@ handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
 
 handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
-  	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID)
+  	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
@@ -313,7 +313,7 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
     {noreply, S};
 
 handle_cast( Msg = {_, backupRequest, _}, S ) ->
-	utils:hlog("Received backupRequest, forwarding it along", ?myID)
+	utils:hlog("Received backupRequest, forwarding it along", ?myID),
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
