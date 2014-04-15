@@ -258,8 +258,8 @@ test_store_basic(Num, M) ->
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
-    FirstKeySuccess = ((EndFirstKey == key_min(MinKey, StartFirstKey)),
-    LastKeySuccess = ((EndLastKey == key_max(MaxKey, StartLastKey)),
+    FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
 
     case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
         true ->
