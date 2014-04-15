@@ -258,7 +258,7 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 handle_cast({Pid, Ref, num_keys}, S) ->
     utils:hlog("Received message from my SP looking for num_keys.", ?myID),
     NewInProgressRefs = [Ref | ?myInProgressRefs],
-    utils:hlog("Sending num_key request to be computed. Starting at size: ~p", [?myBackupSize], ?myID),
+    utils:hlog("Sending num_key request to be computed to ~p. Starting at size: ~p", [?nextNodeID, ?myBackupSize], ?myID),
     gen_server:cast({global, utils:hname(?nextNodeID)}, {Pid, Ref, num_keys, ?myBackupSize}),
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
@@ -266,17 +266,18 @@ handle_cast({Pid, Ref, num_keys}, S) ->
 %% Getting a message from another handler about last keys
 handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
     case lists:member(Ref, ?myInProgressRefs) of
-	true -> 
-	    utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
+    true -> 
+        utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
 
-	    Pid ! {Ref, result, ComputationSoFar},
+        Pid ! {Ref, result, ComputationSoFar},
 
-	    NewInProgressRefs = lists:delete(Ref, ?myInProgressRefs),
+        NewInProgressRefs = lists:delete(Ref, ?myInProgressRefs),
 
-	    {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
-	false ->
-	    utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
-	    NewNumKeys = ?myBackupSize + ComputationSoFar,
+        {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+    false ->
+        utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
+        NewNumKeys = ?myBackupSize + ComputationSoFar,
+        utils:hlog("Forwarding num_key request after computation to ~p. Current size: ~p", [?nextNodeID, NewNumKeys], ?myID),
 	    gen_server:cast({global, utils:hname(?nextNodeID)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 	    {noreply, S}
@@ -342,14 +343,14 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 
     %% Transfer our backup data to next node
     utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
-    gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup}),
+    gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup, ?prevNodeID}),
     
     %% Request new backup data
     utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
-    {noreply, S#state{myID = ?prevNodeID }};
+    {noreply, S#state{myID = ?prevNodeID,  }};
 
 handle_info(Msg, S) ->
     utils:hlog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
