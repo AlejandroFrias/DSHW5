@@ -244,17 +244,25 @@ test_empty(M) ->
 %% @param Num Number of store requests to make
 test_store_basic(Num, M) ->
     utils:log("BEGIN Basic Store Test"),
+    {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
 
-    case store_many_sequence(Num, M) of
-        {ok, Dict} ->
-            case retrieve_many_sequence(Dict, M) of
-                true ->
-                    utils:log("++ PASS Basic Store Test ++");
-                false ->
-                    utils:log("-- FAIL Basic Store Test --")
-            end;
-        error ->
-            utils:log("-- FAIL Basic Store Test --")
+    {ok, Dict} = store_many_sequence(Num, M),
+
+    {MinKey, _Value} = lists:min(dict:to_list(Dict)),
+    {MaxKey, _Value} = lists:max(dict:to_list(Dict)),
+    {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
+
+    RetrieveSuccess = retrieve_many_sequence(Dict, M),
+    NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
+    FirstKeySuccess = (EndFirstKey == min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == min(MaxKey, StartLastKey)),
+
+    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
+        true ->
+            utils:log("++ PASS test_store_basic");
+        false ->
+            utils:log("-- FAIL test_store_basic. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p",
+                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
     end.
 
 %% Tests that stores are backed up properly, by making node leave and trying to
@@ -343,12 +351,14 @@ retrieve_many_sequence(Dict, M, [Key| Keys]) ->
             false
     end.
 
-%% Store many different key-value pairs in parallel (wait for all responses at end)
-
-%% Store many same in sequence
-
-%% Store many same in parallel
-
+%% Get the current state of the system (minus the node list)
+get_state(M) ->
+    {ok, NumKeys} = num_keys(rand_id(M), false),
+    {ok, FirstKey} = first_key(rand_id(M), false),
+    {ok, LastKey} = last_key(rand_id(M), false),
+    utils:log("State: ~nNumber of Keys => ~p.~nFirst Key => ~p.~nLast Key => ~p.", 
+         [NumKeys, FirstKey, LastKey]),
+    {NumKeys, FirstKey, LastKey}.
 
 rand_id(M) ->
     random:uniform(utils:pow2(M)) - 1.
