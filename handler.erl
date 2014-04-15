@@ -353,7 +353,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 
     utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID]),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
-    {noreply, S#state{myID = ?prevNodeID,  }};
+    {noreply, S#state{myID = ?prevNodeID}};
 
 handle_info(Msg, S) ->
     utils:hlog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
