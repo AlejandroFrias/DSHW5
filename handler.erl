@@ -293,6 +293,7 @@ handle_cast({_Pid, _Ref, leave}, S) ->
 
 %% Replace the backup data with the new backup data
 handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
+	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID)
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
     {noreply, S#state{prevNodeID = NewPrevID,
@@ -304,12 +305,15 @@ handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
 
 handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
+  	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID)
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
+    utils:hlog("Data assembling, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
     {noreply, S};
 
 handle_cast( Msg = {_, backupRequest, _}, S ) ->
+	utils:hlog("Received backupRequest, forwarding it along", ?myID)
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
@@ -318,6 +322,8 @@ handle_cast( {appendBackup, BackupData, NewPrevNodeID}, S ) ->
 	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
 	NewBackupData = BackupData ++ ?myBackup,
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
+
+    utils:hlog("Changing my prevNodeID to ~p", [NewPrevNodeID], ?myID),
 	{noreply, S#state{myBackup = NewBackupData,
 					  myBackupSize = length(NewBackupData),
 					  minKey = NewMinKey,
@@ -339,8 +345,9 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 	       [Node, ?prevNodeID], ?myID),
     global:unregister_name( utils:hname(?myID) ),
 
-    %% start the necessary storage processes from backup    
-    startAllSPs(?prevNodeID, ?myID, ?m, ?myBackup),
+    %% start the necessary storage processes from backup   
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, ?myID - 1], ?myID), 
+    startAllSPs(?prevNodeID, ?myID - 1, ?m, ?myBackup),
 
     %% Transfer our backup data to next node
     utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
