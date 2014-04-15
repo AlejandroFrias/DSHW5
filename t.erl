@@ -25,7 +25,9 @@
          leave/1,
          test_store_basic/2,
          test_empty/1,
-         test_back_up/2]).
+         test_back_up/2,
+         store_many_sequence/2,
+         retrieve_many_sequence/2]).
 
 -define (TIMEOUT, 10000).
 
@@ -223,6 +225,7 @@ node_list(ProcID, Debug) ->
 
 %% Sends leave request
 leave(ProcID) ->
+    utils:log("Telling storage~p to leave.", [ProcID]),
     Ref = make_ref(),
     Dest = get_pid(ProcID),
     Dest ! {self(), Ref, leave}.
@@ -254,11 +257,23 @@ test_store_basic(Num, M) ->
             utils:log("-- FAIL Basic Store Test --")
     end.
 
-%% Tests that stores are backed up properly, by making nodes leave and trying to
-%% retrieve them after.
+%% Tests that stores are backed up properly, by making node leave and trying to
+%% retrieve after re-balance.
 %% @param Num Number of store requests to make
 test_back_up(Num, M) ->
-    finish_me.
+    case store_many_sequence(Num, M) of
+        {ok, Dict} ->
+            leave(rand_id(M)),
+            timer:sleep(2000), %% Allow time for re-balance.
+            case retrieve_many_sequence(Dict, M) of
+                true ->
+                    utils:log("++ PASS test_back_up ++");
+                false ->
+                    utils:log("-- FAIL test_back_up: Lost some data --")
+            end;
+        error ->
+            utils:log("++ FAIL test_back_up: Initial storing failed ++")
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                       TEST HELPERS YAY!!!                                %%%
