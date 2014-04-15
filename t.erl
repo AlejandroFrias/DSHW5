@@ -27,6 +27,7 @@
          test_empty/1,
          test_back_up/2,
          store_many_sequence/2,
+         store_many_parallel/2,
          retrieve_many_sequence/2]).
 
 -define (TIMEOUT, 10000).
@@ -368,6 +369,42 @@ store_many_sequence(Num, M, KeyValuePairs) ->
             utils:log("-- FAIL store_many_sequence --"),
             error
     end.
+
+
+store_many_parallel(Num, M) ->
+    RandKeyValues = [{rand_key_value(), rand_id(M)} || _N <- lists:seq(1, Num)],
+    RefKeys = [{send_store(Key, Value, ID), {Key, Value}} || {{Key, Value}, ID} <- RandKeyValues],
+    ReceiveSucceeded = receive_store_all(RefKeys),
+
+    %Now try overwriting
+    %Send overwrites
+    NewRefKeys = [{send_store(Key, element(2, rand_key_value()), rand_id(M)), {Key, Value}} || {_Ref, {Key, Value}} <- RefKeys],
+    OverwriteSucceeded = receive_overwrite_all(NewRefKeys),
+    ReceiveSucceeded and OverwriteSucceeded.
+    
+
+receive_store_all([]) ->
+  utils:log("store Parallel: Succeeded."),
+  true;
+receive_store_all([{Ref, {_Key, _Value}} | Rest]) ->
+    receive 
+        {Ref, stored, _OldValue} -> receive_store_all(Rest)
+    after ?TIMEOUT ->
+        utils:log("ERROR Parallel store request with ref ~p never returned", [Ref]),
+        false
+    end.
+
+receive_overwrite_all([]) ->
+  utils:log("overwrite Parallel: Succeeded."),
+  true;
+receive_overwrite_all([{Ref, {_Key, OldValue}} | Rest]) ->
+    receive 
+        {Ref, stored, OldValue} -> receive_overwrite_all(Rest)
+    after ?TIMEOUT ->
+        utils:log("ERROR Parallel overwrite request with ref ~p never returned", [Ref]),
+        false
+    end.
+
 
 %% One at a time, confirm that each key-value pair exists.
 retrieve_many_sequence(KeyValueDict, M) ->
