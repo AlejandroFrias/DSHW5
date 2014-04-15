@@ -293,7 +293,7 @@ handle_cast({_Pid, _Ref, leave}, S) ->
 
 %% Replace the backup data with the new backup data
 handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
-	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID)
+	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID),
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
     {noreply, S#state{prevNodeID = NewPrevID,
@@ -308,7 +308,7 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID)
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
-    utils:hlog("Data assembling, sending to next node ~p.", [?nextNodeID], ?myID),
+    utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
     {noreply, S};
 

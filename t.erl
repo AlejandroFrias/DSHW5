@@ -230,10 +230,35 @@ leave(ProcID) ->
 
 leave(ProcID, Debug) ->
     utils:dlog("Telling storage~p to leave.", [ProcID], Debug),
+    {BeforeNumKeys, BeforeFirstKey, BeforeLastKey} = get_state(M),
+    {ok, BeforeNodeList} = node_list(ProcID, false),
+    BeforeStorageProcIDs = lists:sort([get_pid(N) || N <- global:registered_names(), utils:inStorage(N)]),
+
     Ref = make_ref(),
     Dest = get_pid(ProcID),
     Dest ! {self(), Ref, leave},
-    timer:sleep(5000).
+    timer:sleep(5000),
+
+    {AfterNumKeys, AfterFirstKey, AfterLastKey} = get_state(M),
+    {ok, AfterNodeList} = node_list(ProcID, false),
+    AfterStorageProcIDs = lists:sort([get_pid(N) || N <- global:registered_names(), utils:inStorage(N)]),
+
+    NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
+    FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
+    LastKeySuccess = (AfterLastKey == BeforeLastKey),
+    LeaveSuccess = (length(BeforeNodeList) == length(AfterNodeList) - 1),
+    StorageSuccess = (BeforeStorageProcIDs == AfterStorageProcIDs),
+
+    case (NumKeysSuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess and StorageSuccess) of
+        true ->
+            utils:dlog("Leave was successful.", Debug),
+            true;
+        false ->
+            utils:log("FAIL leave. NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p LeaveSuccess: ~p StorageSuccess: ~p",
+                [NumKeySuccess, FirstKeySuccess, LastKeySuccess, LeaveSuccess, StorageSuccess]),
+            false
+    end.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -288,7 +313,8 @@ test_back_up(Num, Kill, M) ->
     {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
     {ok, Dict} = store_many_sequence(Num, M),
 
-    [leave(rand_id(M)) || _X <- lists:seq(1, Kill)],
+    LeaveSuccesses = [leave(rand_id(M), false) || _X <- lists:seq(1, Kill)],
+    LeaveSuccess = not lists:member(false, LeaveSuccesses),
     
     {MinKey, _} = lists:min(dict:to_list(Dict)),
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
@@ -299,12 +325,12 @@ test_back_up(Num, Kill, M) ->
     FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
 
-    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
+    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess) of
         true ->
             utils:log("++ PASS test_back_up");
         false ->
-            utils:log("-- FAIL test_back_up. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p",
-                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
+            utils:log("-- FAIL test_back_up. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p LeaveSuccess: ~p",
+                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess, LeaveSuccess])
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
