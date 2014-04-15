@@ -148,10 +148,11 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 						   myMonitoredNode = NewMonitoredNode}};
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
-    %% ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
-    %% terminateProcs(ProcsToTerminate),
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+    terminateProcs(ProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
+    
 
 handle_call(Msg, _From, S) ->
     utils:hlog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
@@ -301,12 +302,22 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 	    {noreply, S}
     end;
 
+handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
+    BackupSize = erlang:length(NewBackupData),
+    {noreply, S#state{prevNodeID = NewPrevID,
+		       myBackup = NewBackupData,
+		       minKey = NewMinKey,
+		       maxKey = NewMaxKey,
+		       myBackupSize = BackupSize
+		      }};
+
 handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
     % get all my storage nodes' data
     AllMyData = dict:new(),
-    NewNextID = gen_server:call( Pid, {Ref, ?myID, AllMyData} ),
-    {noreply, S=state#{nextNodeID = NewNextID}};
+    gen_server:cast( Pid, {Ref, ?myID, AllMyData} ),
+    {noreply, S};
 
 handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
@@ -328,9 +339,9 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), make_ref(), gimmeTheBackup, ?prevNodeID} ),
     %% start the necessary storage processes from backup    
-    
-    global:register_name( utils:hname(?prevNodeID) ),
-    {noreply, S#state{myID = ?prevNodeID };
+    startAllSPs(?prevNodeID, ?myID, ?m, ?myBackup),
+%%    global:register_name( utils:hname(?prevNodeID) ),
+    {noreply, S#state{myID = ?prevNodeID }};
 
 
 %% 
@@ -420,3 +431,13 @@ updateMaxKey(Key, S) ->
 	    ?maxKey
     end.
 
+calculateMinMaxKey( [{FirstKey,_,_}|Rest] ) ->
+    calculateMinMaxKey(Rest, FirstKey, FirstKey).
+
+calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
+    calculateMinMaxKey(Rest, max(MaxKey, NextKey), min(MinKey, NextKey));
+
+calculateMinMaxKey([], MaxKey, MinKey) ->
+    {MinKey, MaxKey}.
+
+    
