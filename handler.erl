@@ -82,7 +82,7 @@ init({M, MyID}) ->
     utils:hlog("Handler started successfully.", MyID),
     utils:hlog("My node name is ~w", [node()], MyID),
     {ok, #state{m = M, myID = MyID, nextNodeID = 0, prevNodeID = 0,
-		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
+		myBackup = [], minKey = no_value, maxKey = no_value, myBackupSize = 0,
 		myInProgressRefs = [], %%myMonitorRef = make_ref()
 		myMonitoredNode = erlang:node()
 	       }}; %Fix these keys
@@ -413,10 +413,10 @@ terminateProcs([Proc | Procs]) ->
 %% backup_store
 updateMinKey(Key, S) ->
     case (Key < ?minKey) or (?myBackupSize == 0) of
-	true ->
-	    Key;
-	false ->
-	    ?minKey
+    	true ->
+    	    Key;
+    	false ->
+    	    ?minKey
     end.
 
 updateMaxKey(Key, S) ->
@@ -427,7 +427,7 @@ updateMaxKey(Key, S) ->
 	    ?maxKey
     end.
 
-calculateMinMaxKey([]) -> {[], []};
+calculateMinMaxKey([]) -> {no_value, no_value};
 calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 

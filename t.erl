@@ -25,7 +25,7 @@
          leave/1,
          test_store_basic/2,
          test_empty/1,
-         test_back_up/2,
+         test_back_up/3,
          store_many_sequence/2,
          store_many_parallel/2,
          retrieve_many_sequence/2]).
@@ -226,10 +226,15 @@ node_list(ProcID, Debug) ->
 
 %% Sends leave request
 leave(ProcID) ->
-    utils:log("Telling storage~p to leave.", [ProcID]),
+    leave(ProcID, true).
+
+leave(ProcID, Debug) ->
+    utils:dlog("Telling storage~p to leave.", [ProcID], Debug),
     Ref = make_ref(),
     Dest = get_pid(ProcID),
-    Dest ! {self(), Ref, leave}.
+    Dest ! {self(), Ref, leave},
+    timer:sleep(2000).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                              TESTS YAY!!!                                %%%
@@ -253,14 +258,14 @@ test_store_basic(Num, M) ->
 
     {ok, Dict} = store_many_sequence(Num, M),
 
-    {MinKey, _Value} = lists:min(dict:to_list(Dict)),
-    {MaxKey, _Value} = lists:max(dict:to_list(Dict)),
+    {MinKey, _} = lists:min(dict:to_list(Dict)),
+    {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
-    FirstKeySuccess = (EndFirstKey == min(MinKey, StartFirstKey)),
-    LastKeySuccess = (EndLastKey == min(MaxKey, StartLastKey)),
+    FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
 
     case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
         true ->
@@ -270,22 +275,34 @@ test_store_basic(Num, M) ->
                 [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
     end.
 
+
+
 %% Tests that stores are backed up properly, by making node leave and trying to
 %% retrieve after re-balance.
 %% @param Num Number of store requests to make
-test_back_up(Num, M) ->
-    case store_many_sequence(Num, M) of
-        {ok, Dict} ->
-            leave(rand_id(M)),
-            timer:sleep(2000), %% Allow time for re-balance.
-            case retrieve_many_sequence(Dict, M) of
-                true ->
-                    utils:log("++ PASS test_back_up ++");
-                false ->
-                    utils:log("-- FAIL test_back_up: Lost some data --")
-            end;
-        error ->
-            utils:log("++ FAIL test_back_up: Initial storing failed ++")
+%% @param Kill Number of nodes to kill
+test_back_up(Num, Kill, M) ->
+    utils:log("BEGIN test_back_up"),
+    {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
+    {ok, Dict} = store_many_sequence(Num, M),
+
+    [leave(rand_id(M)) || _X <- lists:seq(1, Kill)],
+    
+    {MinKey, _} = lists:min(dict:to_list(Dict)),
+    {MaxKey, _} = lists:max(dict:to_list(Dict)),
+    {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
+
+    RetrieveSuccess = retrieve_many_sequence(Dict, M),
+    NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
+    FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
+
+    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
+        true ->
+            utils:log("++ PASS test_back_up");
+        false ->
+            utils:log("-- FAIL test_back_up. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p",
+                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -454,3 +471,18 @@ get_random_string(Length, AllowedChars) ->
                         ++ Acc
                 end, [], lists:seq(1, Length)).
 
+key_min(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            min(A, B)
+    end.
+
+key_max(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            max(A, B)
+    end.
