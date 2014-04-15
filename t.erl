@@ -237,7 +237,11 @@ leave(ProcID) ->
 %% Tests that an empty untouched system is as it should be. Assumes no requests
 %% have been made before this function is called after a system is set up
 test_empty(M) ->
-    test_num_keys_all(0, utils:pow2(M) - 1).
+    Good1 = test_num_keys_all(0, utils:pow2(M) - 1),
+    Good2 = test_first_keys_all([], utils:pow2(M) - 1) and Good1,
+    Good3 = test_num_keys_all_parallel(0, utils:pow2(M) - 1) and Good2,
+    Good4 = test_last_keys_all_parallel([], utils:pow2(M) - 1) and Good3,
+    Good4.
 
 
 %% Tests that key-value pairs are stored and retrievable
@@ -305,7 +309,45 @@ test_num_keys_all(ExpectedNum, ProcID) ->
             false
     end.
 
+test_first_keys_all(ExpectedKey, 0) ->
+    utils:log("First Keys: ~p",[ExpectedKey]),
+    true;
+test_first_keys_all(ExpectedKey, ProcID) ->
+    case first_key(ProcID, false) of
+        {ok, ExpectedKey} ->
+            test_first_keys_all(ExpectedKey, ProcID - 1);
+        {ok, Other} ->
+            utils:log("ERROR First Key - Expected ~p. Got ~p", [ExpectedKey, Other]), 
+            false;
+        error ->
+            utils:log("ERROR First Key - first_key request sent to ~p never returned", [ProcID]),
+            false
+    end.
 
+
+test_num_keys_all_parallel(ExpectedNum, ProcID) ->
+    Refs = [send_num_keys(ProcessID) || ProcessID <- lists:seq(0, ProcID)],
+    receive_snap_all(ExpectedNum, Refs, num_keys).
+    
+
+receive_snap_all(ExpectedVal, [], Type) ->
+  utils:log("~p Parallel: ~p",[Type, ExpectedVal]),
+  true;
+receive_snap_all(ExpectedVal, [Ref | Refs], Type) ->
+    receive 
+        {Ref, result, ExpectedVal} -> receive_snap_all(ExpectedVal, Refs, Type);
+        {Ref, result, OtherNum} -> 
+            utils:log("ERROR Parallel ~p - Expected ~p. Got ~p", [Type, ExpectedVal, OtherNum]), 
+            false
+    after ?TIMEOUT ->
+        utils:log("ERROR Parallel ~p - ~p request with ref ~p never returned", [Type, Type, Ref]),
+        false
+    end.
+
+test_last_keys_all_parallel(ExpectedKey, ProcID) ->
+    Refs = [send_last_key(ProcessID) || ProcessID <- lists:seq(0, ProcID)],
+    receive_snap_all(ExpectedKey, Refs, last_key).
+    
 
 %% Store many different key-value pairs in sequence (wait for response after every store)
 %% Num is the number of store requests to make
