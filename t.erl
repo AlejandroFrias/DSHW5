@@ -232,7 +232,7 @@ leave(ProcID, Debug) ->
     Ref = make_ref(),
     Dest = get_pid(ProcID),
     Dest ! {self(), Ref, leave},
-    timer:sleep(2000).
+    timer:sleep(5000).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
