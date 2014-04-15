@@ -2,7 +2,10 @@
 %%% CSCI182E - Distributed Systems
 %%% @author Alejandro Frias, Ravi Kumar, David Scott
 %%%
-%%% A Storage Process implementation.
+%%% A Non-Storage Process (Handler) implementation.
+%%% 
+%%% This process handles management of a node, like fault tolerance, backup, some
+%%% communication with the outside world, re-balancing on join and leave, etc. 
 %%%--------------------------------------------------------------------
 
 
@@ -38,7 +41,6 @@
 -define(myInProgressRefs, S#state.myInProgressRefs).
 -define(myAllDataAssembling, S#state.myAllDataAssembling).
 -define(myProcsWaitingFor, S#state.myProcsWaitingFor).
-%%-define(myMonitorRef, S#state.myMonitorRef).
 -define(myMonitoredNode, S#state.myMonitoredNode).
 
 -record(state, {m, 
@@ -50,16 +52,8 @@
 		maxKey,
 		myBackupSize ,
 		myInProgressRefs,
-		%%	myMonitorRef
 		myMonitoredNode
 	       }).
-%% myInProgressRefs is a list of refs for messages for *key computations I started
-%%  myAllDataAssembling - when we pull all data from nodes, we need a place to keep it while we get it all.
-%%  myProcsWaitingFor - the number of processes that still haven't sent us their data. 
-%%    See all data send and all data request messages
-
-
-
 
 
 
@@ -78,9 +72,9 @@ start( {Minty, PrevHandlerID, NewHandlerID, NextHandlerID} ) ->
 %% Start ID will always be 0
 init({M, MyID}) ->
     %% net_kernel:start([node(), shortnames]),
-    %%ConnectResult = net_kernel:connect_node(OriginProcess),
-    %%utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
-    timer:sleep(1000),
+    %% ConnectResult = net_kernel:connect_node(OriginProcess),
+    %% utils:log("Connecting to ~w, result is: ~w", [OriginProcess, ConnectResult]),
+    global:sync(),
     utils:hlog("Handler starting with node ID ~w and no next ID", [MyID], MyID),
 
     %% Start all the processes
@@ -88,12 +82,12 @@ init({M, MyID}) ->
     utils:hlog("Handler started successfully.", MyID),
     utils:hlog("My node name is ~w", [node()], MyID),
     {ok, #state{m = M, myID = MyID, nextNodeID = 0, prevNodeID = 0,
-		myBackup = [], minKey = [], maxKey = [], myBackupSize = 0,
+		myBackup = [], minKey = no_value, maxKey = no_value, myBackupSize = 0,
 		myInProgressRefs = [], %%myMonitorRef = make_ref()
 		myMonitoredNode = erlang:node()
 	       }}; %Fix these keys
 
-%%Start up everything as a non-first node in a system
+%% Start up everything as a non-first node in a system
 init({M, PrevNodeID, MyID, NextNodeID}) -> 
     utils:hlog("Handler starting with node ID ~w and next ID ~w", [MyID, NextNodeID], MyID),
     
@@ -134,25 +128,23 @@ handle_call({joining_front, NodeID}, _From, S) ->
 %% up and back up and then delete the backup data we no longer need.
 handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     utils:hlog("New node joining behind me at ~p", [NodeID], ?myID),
-    %% stop monitoring the one who used to be behind you.
-    %% erlang:demonitor(?myMonitorRef),
+
     erlang:monitor_node( ?myMonitoredNode, false ),
-    %% start monitoring the new node that is behind you.
     NewMonitoredNode = erlang:node( Pid ),
     erlang:monitor_node( NewMonitoredNode, true ),
-    %%    Ref = erlang:monitor(process, Pid),
-    %%    Ref = erlang:monitor(process, {utils:hname(NodeID), Pid}),
+
     NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
-						   myBackup = NewBackup,%% myMonitorRef = Ref
+						   myBackup = NewBackup,
 						   myMonitoredNode = NewMonitoredNode}};
+
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
     ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
     terminateProcs(ProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
-    
+
 
 handle_call(Msg, _From, S) ->
     utils:hlog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
@@ -194,7 +186,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 			      maxKey = NewMaxKey} }
     end;
 
-%%Getting a message from one of our SPs looking for the first key
+%% Getting a message from one of our SPs looking for the first key
 handle_cast({Pid, Ref, first_key}, S) ->
     NextHandler = ?nextNodeID,
     MyFirstKey = ?minKey, 
@@ -208,7 +200,7 @@ handle_cast({Pid, Ref, first_key}, S) ->
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about first keys
+%% Getting a message from another handler about first keys
 handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
     InProgressRefs = ?myInProgressRefs,
 
@@ -224,16 +216,17 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 	    utils:hlog("Got first_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
 
 	    NextHandler = ?nextNodeID,
-	    NewFirstKey = min(?minKey, ComputationSoFar),
+	    NewFirstKey = utils:key_min(?minKey, ComputationSoFar),
 	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
 
 	    {noreply, S}
     end;
 
-%%Getting a message from one of our SPs looking for the last key
+%% Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, last_key}, S) ->
     NextHandler = ?nextNodeID,
     MyLastKey = ?maxKey, 
+
     OldInProgressRefs = ?myInProgressRefs,
 
     utils:hlog("Received message from my SP looking for last_key.", ?myID),
@@ -244,7 +237,7 @@ handle_cast({Pid, Ref, last_key}, S) ->
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about last keys
+%% Getting a message from another handler about last keys
 handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs = InProgressRefs}) ->
     InProgressRefs = ?myInProgressRefs,
 
@@ -261,48 +254,53 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 	    utils:hlog("Got last_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
 
 	    NextHandler = ?nextNodeID,
-	    NewLastKey = max(?maxKey, ComputationSoFar),
+	    NewLastKey = utils:key_max(?maxKey, ComputationSoFar),
 	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
 
 	    {noreply, S}
     end;
 
-%%Getting a message from one of our SPs looking for the last key
+%% Getting a message from one of our SPs looking for the last key
 handle_cast({Pid, Ref, num_keys}, S) ->
-    NextHandler = ?nextNodeID,
-    MyNumKeys = ?myBackupSize, 
-    OldInProgressRefs = ?myInProgressRefs,
-
     utils:hlog("Received message from my SP looking for num_keys.", ?myID),
-
-    NewInProgressRefs = [Ref | OldInProgressRefs],
-
-    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, MyNumKeys}),
+    NewInProgressRefs = [Ref | ?myInProgressRefs],
+    utils:hlog("Sending num_key request to be computed to ~p. Starting at size: ~p", [?nextNodeID, ?myBackupSize], ?myID),
+    gen_server:cast({global, utils:hname(?nextNodeID)}, {Pid, Ref, num_keys, ?myBackupSize}),
 
     {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
 
-%%Getting a message from another handler about last keys
+%% Getting a message from another handler about last keys
 handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
     case lists:member(Ref, ?myInProgressRefs) of
-	true -> 
-	    utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
+    true -> 
+        utils:hlog("Finished num_keys computation. Result was: ~p", [ComputationSoFar], ?myID),
 
-	    Pid ! {Ref, result, ComputationSoFar},
+        Pid ! {Ref, result, ComputationSoFar},
 
-	    NewInProgressRefs = lists:delete(Ref, ?myInProgressRefs),
+        NewInProgressRefs = lists:delete(Ref, ?myInProgressRefs),
 
-	    {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
-	false ->
-	    utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
-
-	    NextHandler = ?nextNodeID,
-	    NewNumKeys = ?myInProgressRefs + ComputationSoFar,
-	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, num_keys, NewNumKeys}),
+        {noreply, S#state{myInProgressRefs = NewInProgressRefs}};
+    false ->
+        utils:hlog("Got num_keys computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
+        NewNumKeys = ?myBackupSize + ComputationSoFar,
+        utils:hlog("Forwarding num_key request after computation to ~p. Current size: ~p", [?nextNodeID, NewNumKeys], ?myID),
+	    gen_server:cast({global, utils:hname(?nextNodeID)}, {Pid, Ref, num_keys, NewNumKeys}),
 
 	    {noreply, S}
     end;
 
-handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
+
+handle_cast({_Pid, _Ref, leave}, S) ->
+    utils:hlog("Asked to leave by outside world. About to halt.", ?myID),
+    % ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+    % terminateProcs(ProcsToTerminate),
+
+    % {stop, normal, "Asked to leave by outside world", S};
+    erlang:halt();
+
+%% Replace the backup data with the new backup data
+handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
+	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID),
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
     {noreply, S#state{prevNodeID = NewPrevID,
@@ -312,19 +310,37 @@ handle_cast({_Ref, NewPrevID, NewBackupData}, S) ->
 		       myBackupSize = BackupSize
 		      }};
 
-handle_cast( {Pid, Ref, gimmeTheBackup, DiedNodeID}, S )
+
+handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
+  	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
-    AllMyData = dict:new(),
-    gen_server:cast( Pid, {Ref, ?myID, AllMyData} ),
+    AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
+    utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
+    gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
     {noreply, S};
 
-handle_cast( Msg = {_, _, gimmeTheBackup, _}, S ) ->
+handle_cast( Msg = {_, backupRequest, _}, S ) ->
+	utils:hlog("Received backupRequest, forwarding it along", ?myID),
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
+%We also take a new node ID, since we need to keep track of prevNodeID properly
+handle_cast( {appendBackup, BackupData, NewPrevNodeID}, S ) ->
+	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
+	NewBackupData = BackupData ++ ?myBackup,
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
+
+    utils:hlog("Changing my prevNodeID to ~p", [NewPrevNodeID], ?myID),
+	{noreply, S#state{myBackup = NewBackupData,
+					  myBackupSize = length(NewBackupData),
+					  minKey = NewMinKey,
+					  maxKey = NewMaxKey,
+					  prevNodeID = NewPrevNodeID
+	                   }};
+
 handle_cast(Msg, S) ->
-    utils:slog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
+    utils:hlog("UH OH! We don't support handle_cast msgs like ~p.", [Msg], ?myID),
     {noreply, S}.
 
 
@@ -336,24 +352,23 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 		   "of the backups, and then change my ID to the dead node's ID.", 
 	       [Node, ?prevNodeID], ?myID),
     global:unregister_name( utils:hname(?myID) ),
+
+    %% start the necessary storage processes from backup   
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, ?myID - 1], ?myID), 
+    startAllSPs(?prevNodeID, ?myID - 1, ?m, ?myBackup),
+
+    %% Transfer our backup data to next node
+    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
+    gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup, ?prevNodeID}),
+    
+    %% Request new backup data
+    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
-		     {self(), make_ref(), gimmeTheBackup, ?prevNodeID} ),
-    %% start the necessary storage processes from backup    
-    startAllSPs(?prevNodeID, ?myID, ?m, ?myBackup),
-%%    global:register_name( utils:hname(?prevNodeID) ),
-    {noreply, S#state{myID = ?prevNodeID }};
+		     {self(), backupRequest, ?prevNodeID} ),
 
-
-%% 
-%% handle_info({'DOWN', Ref, _, {Name, Node}, _}, S) when Ref == ?myMonitorRef ->
-%%     %% The node behind you died. Time to take it's place
-%%     %% and start up those processes and get some back up data.
-%%     utils:hlog("Oh no! The previous node (Name: ~p, Node: ~p) died!", [Name, Node], ?myID),
-%%     %%    utils:hlog("Oh no! The previous node (~p) died!", [Node], ?myID),
-%%     global:unregister_name( utils:hname(?myID) ),
-%%     global:register_name( Name ),
-%%     {noreply, S};
-
+    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
+    global:register_name( utils:hname( ?prevNodeID ), self() ),
+    {noreply, S#state{myID = ?prevNodeID}};
 
 handle_info(Msg, S) ->
     utils:hlog("UH OH! We don't support handle_info msgs like ~p.", [Msg], ?myID),
@@ -388,14 +403,14 @@ isMyProcess(ID, S) ->
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
     {SPData, Rest} = dataToDict(Data, Stop),
-    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Stop, SPData}, []),
+    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     Rest;
 
 startAllSPs(Start, Stop, M, Data) ->
     {SPData, Rest} = dataToDict(Data, Stop),
 
     %%Start the SP
-    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, Start, SPData}, []),
+    gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     startAllSPs(Start, utils:modDec(Stop, M), M, Rest).
 
 
@@ -416,28 +431,42 @@ terminateProcs([Proc | Procs]) ->
 
 %% backup_store
 updateMinKey(Key, S) ->
-    case (Key < ?minKey) or (?myBackupSize == 0) of
-	true ->
-	    Key;
-	false ->
-	    ?minKey
+    case ((Key < ?minKey) or (?myBackupSize == 0)) of
+    	true ->
+    	    Key;
+    	false ->
+    	    ?minKey
     end.
 
 updateMaxKey(Key, S) ->
-    case (Key > ?maxKey) or (?myBackupSize == 0) of
+    case ((Key > ?maxKey) or (?myBackupSize == 0)) of
 	true ->
 	    Key;
 	false ->
 	    ?maxKey
     end.
 
-calculateMinMaxKey( [{FirstKey,_,_}|Rest] ) ->
+calculateMinMaxKey([]) -> 
+    {no_value, no_value};
+
+calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 
 calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
-    calculateMinMaxKey(Rest, max(MaxKey, NextKey), min(MinKey, NextKey));
+    calculateMinMaxKey(Rest, utils:key_max(MaxKey, NextKey), utils:key_min(MinKey, NextKey));
 
 calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
 
-    
+
+gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+    % utils:log("DATA SO FAR: ~p", [DataSoFar]),
+    DataSoFar;
+
+gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
+    NextData = gen_server:call( {global, utils:sname(NextStorageID)},
+                                {all_data} ),
+    gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
+                   DataSoFar ++ NextData, M ).
+
+
