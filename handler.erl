@@ -351,7 +351,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
 
-    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID]),
+    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
     {noreply, S#state{myID = ?prevNodeID}};
 
