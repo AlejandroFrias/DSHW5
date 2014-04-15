@@ -312,15 +312,16 @@ handle_cast( Msg = {_, backupRequest, _}, S ) ->
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
-
-handle_cast( {appendBackup, BackupData}, S ) ->
+%We also take a new node ID, since we need to keep track of prevNodeID properly
+handle_cast( {appendBackup, BackupData, NewPrevNodeID}, S ) ->
 	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
 	NewBackupData = BackupData ++ ?myBackup,
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
 	{noreply, S#state{myBackup = NewBackupData,
 					  myBackupSize = length(NewBackupData),
 					  minKey = NewMinKey,
-					  maxKey = NewMaxKey
+					  maxKey = NewMaxKey,
+					  prevNodeID = NewPrevNodeID
 	                   }};
 
 handle_cast(Msg, S) ->
