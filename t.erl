@@ -289,8 +289,8 @@ test_store_basic(Num, M) ->
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
-    FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
-    LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
+    FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
     OldValueSuccess = store_many_parallel(Num, M),
 
 
@@ -322,8 +322,8 @@ test_back_up(Num, Kill, M) ->
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
-    FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
-    LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
+    FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
 
     case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess) of
         true ->
@@ -499,18 +499,4 @@ get_random_string(Length, AllowedChars) ->
                         ++ Acc
                 end, [], lists:seq(1, Length)).
 
-key_min(A, B) ->
-    case B == no_value of
-        true ->
-            A;
-        false ->
-            min(A, B)
-    end.
 
-key_max(A, B) ->
-    case B == no_value of
-        true ->
-            A;
-        false ->
-            max(A, B)
-    end.

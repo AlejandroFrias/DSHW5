@@ -210,7 +210,7 @@ handle_cast({Pid, Ref, first_key, ComputationSoFar}, S = #state{myInProgressRefs
 	    utils:hlog("Got first_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
 
 	    NextHandler = ?nextNodeID,
-	    NewFirstKey = min(?minKey, ComputationSoFar),
+	    NewFirstKey = utils:key_min(?minKey, ComputationSoFar),
 	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, first_key, NewFirstKey}),
 
 	    {noreply, S}
@@ -248,7 +248,7 @@ handle_cast({Pid, Ref, last_key, ComputationSoFar}, S = #state{myInProgressRefs 
 	    utils:hlog("Got last_key computation from another handler. So far, the computation is : ~p", [ComputationSoFar], ?myID),
 
 	    NextHandler = ?nextNodeID,
-	    NewLastKey = max(?maxKey, ComputationSoFar),
+	    NewLastKey = utils:key_max(?maxKey, ComputationSoFar),
 	    gen_server:cast({global, utils:hname(NextHandler)}, {Pid, Ref, last_key, NewLastKey}),
 
 	    {noreply, S}
@@ -423,7 +423,7 @@ terminateProcs([Proc | Procs]) ->
 
 %% backup_store
 updateMinKey(Key, S) ->
-    case (Key < ?minKey) or (?myBackupSize == 0) of
+    case ((Key < ?minKey) or (?myBackupSize == 0)) of
     	true ->
     	    Key;
     	false ->
@@ -431,7 +431,7 @@ updateMinKey(Key, S) ->
     end.
 
 updateMaxKey(Key, S) ->
-    case (Key > ?maxKey) or (?myBackupSize == 0) of
+    case ((Key > ?maxKey) or (?myBackupSize == 0)) of
 	true ->
 	    Key;
 	false ->
@@ -443,7 +443,7 @@ calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 
 calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
-    calculateMinMaxKey(Rest, max(MaxKey, NextKey), min(MinKey, NextKey));
+    calculateMinMaxKey(Rest, utils:key_max(MaxKey, NextKey), utils:key_min(MinKey, NextKey));
 
 calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.

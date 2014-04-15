@@ -29,7 +29,9 @@
           hname/1,
           modSeq/3,
           modInc/2,
-          modDec/2]).
+          modDec/2,
+          key_min/2,
+          key_max/2]).
 
 %% Prints a time stamp.
 timestamp() ->
@@ -148,3 +150,19 @@ modInc(Num, M) ->
 %% Decrements Num modulo 2^M (always positive results)
 modDec(Num, M) ->
   (Num - 1 + pow2(M)) rem pow2(M).
+
+key_min(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            min(A, B)
+    end.
+
+key_max(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            max(A, B)
+    end.
