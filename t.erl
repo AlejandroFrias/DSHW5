@@ -285,7 +285,7 @@ test_back_up(Num, Kill, M) ->
     {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
     {ok, Dict} = store_many_sequence(Num, M),
 
-    [leave(rand_id(M)) || _X <- lists:seq(Kill)],
+    [leave(rand_id(M)) || _X <- lists:seq(1, Kill)],
     
     {MinKey, _} = lists:min(dict:to_list(Dict)),
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
