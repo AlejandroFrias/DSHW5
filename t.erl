@@ -266,13 +266,15 @@ test_store_basic(Num, M) ->
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
     FirstKeySuccess = (EndFirstKey == key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == key_max(MaxKey, StartLastKey)),
+    OldValueSuccess = store_many_parallel(Num, M),
 
-    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
+
+    case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess and OldValueSuccess) of
         true ->
             utils:log("++ PASS test_store_basic");
         false ->
-            utils:log("-- FAIL test_store_basic. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p",
-                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
+            utils:log("-- FAIL test_store_basic. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p OldValueSuccess: ~p",
+                [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess, OldValueSuccess])
     end.
 
 
