@@ -258,8 +258,8 @@ test_store_basic(Num, M) ->
 
     RetrieveSuccess = retrieve_many_sequence(Dict, M),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
-    FirstKeySuccess = (EndFirstKey == min(MinKey, StartFirstKey)),
-    LastKeySuccess = (EndLastKey == min(MaxKey, StartLastKey)),
+    FirstKeySuccess = ((EndFirstKey == key_min(MinKey, StartFirstKey)),
+    LastKeySuccess = ((EndLastKey == key_max(MaxKey, StartLastKey)),
 
     case (RetrieveSuccess and NumKeySuccess and FirstKeySuccess and LastKeySuccess) of
         true ->
@@ -268,6 +268,8 @@ test_store_basic(Num, M) ->
             utils:log("-- FAIL test_store_basic. RetrieveSuccess: ~p NumKeySuccess: ~p FirstKeySuccess: ~p LastKeySuccess: ~p",
                 [RetrieveSuccess, NumKeySuccess, FirstKeySuccess, LastKeySuccess])
     end.
+
+
 
 %% Tests that stores are backed up properly, by making node leave and trying to
 %% retrieve after re-balance.
@@ -417,3 +419,18 @@ get_random_string(Length, AllowedChars) ->
                         ++ Acc
                 end, [], lists:seq(1, Length)).
 
+key_min(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            min(A, B)
+    end.
+
+key_max(A, B) ->
+    case B == no_value of
+        true ->
+            A;
+        false ->
+            max(A, B)
+    end.
