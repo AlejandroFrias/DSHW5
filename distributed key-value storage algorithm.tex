@@ -14,9 +14,7 @@
 \usepackage{tikz}
 \usepackage{tkz-graph}
 \usepackage{listings}
-%\usepackage{slashbox}
 \usepackage{array}
-%\usepackage{logicsym}
 \usepackage{amssymb}
 \usepackage{etoolbox}
 \usepackage{pdfpages}
@@ -58,7 +56,7 @@ mathescape=true}
 \maketitle
 
 
-%\onehalfspacing
+\onehalfspacing
 %\section*{Algorithm Description}
 
 \section*{Algorithm Setup}
@@ -119,13 +117,15 @@ Overall, our system's correctness argument is fairly basic. The system works cor
 
 We tested our code in a variety of ways, largely using the test scripts contained in \tt{t.erl}. First, we started a single node with a variety of values for M. 
 
+\section*{Messages}
 In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.
 
+\singlespacing
 \setlength{\extrarowheight}{5pt}
 \setlength{\LTcapwidth}{\textwidth}
 
 \begin{longtable}{p{4.5in}T}
-\caption{Description of messages in the system}
+\caption{Description of messages in the system.  In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.}
 \label{msgTable}\\
 \textbf{Message Description} & \textbf{Erlang Pattern} \\
 \hline
