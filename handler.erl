@@ -120,7 +120,7 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
 handle_call({joining_front, NodeID}, _From, S) ->
     utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
     ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID, ?m)],
-    ActualProcsToTerminate = lists:drop_last(ProcsToTerminate),
+    ActualProcsToTerminate = lists:droplast(ProcsToTerminate),
     terminateProcs(ActualProcsToTerminate),
     {reply, self(), S#state{nextNodeID = NodeID}};
 
@@ -147,7 +147,7 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
     ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID, ?m)],
-    ActualProcsToTerminate = lists:drop_last(ProcsToTerminate),
+    ActualProcsToTerminate = lists:droplast(ProcsToTerminate),
     terminateProcs(ActualProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
