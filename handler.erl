@@ -134,10 +134,13 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     erlang:monitor_node( NewMonitoredNode, true ),
 
     NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
-
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackup),
     utils:hlog("Replying with my backup data.", ?myID),
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
 						   myBackup = NewBackup,
+                           myBackupSize = length(NewBackup),
+                           minKey = NewMinKey,
+                           maxKey = NewMaxKey,
 						   myMonitoredNode = NewMonitoredNode}};
 
 
