@@ -40,7 +40,7 @@
 %% Initialize and connect to 'node1@ash' in one easy method (accepts Seed and 
 %%  returns the See used)
 initAsh() ->
-    Seed = now()
+    Seed = now(),
     initAsh(Seed).
 
 initAsh(Seed) ->
