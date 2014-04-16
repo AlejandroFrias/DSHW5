@@ -140,7 +140,7 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, utils:modDec(?nextNodeID), ?m)],
     terminateProcs(ProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
@@ -356,8 +356,8 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     global:unregister_name( utils:hname(?myID) ),
 
     %% start the necessary storage processes from backup   
-    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, ?myID - 1], ?myID), 
-    startAllSPs(?prevNodeID, ?myID - 1, ?m, ?myBackup),
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID)], ?myID), 
+    startAllSPs(?prevNodeID, utils:modDec(?myID), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
     utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
