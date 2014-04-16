@@ -134,7 +134,7 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     NewMonitoredNode = erlang:node( Pid ),
     erlang:monitor_node( NewMonitoredNode, true ),
 
-    NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
+    NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDistLoop(ID, ?myID, ?m) =< utils:modDistLoop(NodeID, ?myID, ?m)],
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackup),
     utils:hlog("Replying with my backup data.", ?myID),
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
@@ -409,7 +409,7 @@ terminate(_Reason, _State) ->
 
 %Distance from myself to ID
 distTo(ID, S) ->
-    utils:modDist(?myID, ID, ?m).
+    utils:modDistZero(?myID, ID, ?m).
 
 
 isMyProcess(ID, S) ->
