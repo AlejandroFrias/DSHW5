@@ -134,6 +134,8 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     erlang:monitor_node( NewMonitoredNode, true ),
 
     NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
+
+    utils:hlog("Replying with my backup data.", ?myID),
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
 						   myBackup = NewBackup,
 						   myMonitoredNode = NewMonitoredNode}};
@@ -308,7 +310,8 @@ handle_cast({Node, backupNode, NewPrevID, NewBackupData}, S) ->
 		       myBackup = NewBackupData,
 		       minKey = NewMinKey,
 		       maxKey = NewMaxKey,
-		       myBackupSize = BackupSize
+		       myBackupSize = BackupSize,
+		       myMonitoredNode = Node
 		      }};
 
 %% Send out all of my data, formatted as a backup which was requested
@@ -316,7 +319,7 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
-    AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
+    AllMyData = gatherAllData( utils:modSeq(?myID, ?nextNodeID, ?m) ),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
@@ -354,9 +357,12 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 		   "of the backups, and then change my ID to the dead node's ID.", 
 	       [Node, ?prevNodeID], ?myID),
     global:unregister_name( utils:hname(?myID) ),
+    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
+    global:register_name( utils:hname( ?prevNodeID ), self() ),
+
 
     %% start the necessary storage processes from backup   
-    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?myID), 
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?prevNodeID), 
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
@@ -368,8 +374,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
 
-    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
-    global:register_name( utils:hname( ?prevNodeID ), self() ),
+    
     {noreply, S#state{myID = ?prevNodeID}};
 
 handle_info(Msg, S) ->
@@ -395,7 +400,7 @@ terminate(_Reason, _State) ->
 
 
 distTo(ID, S) ->
-    utils:modDist(?m, ?myID, ID).
+    utils:modDist(?myID, ID, ?m).
 
 
 isMyProcess(ID, S) ->
@@ -461,14 +466,15 @@ calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
 
 
-gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+gatherAllData(IDs) -> gatherAllData(IDs, []).
+
+gatherAllData( [], DataSoFar) ->
     % utils:log("DATA SO FAR: ~p", [DataSoFar]),
     DataSoFar;
 
-gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
-    NextData = gen_server:call( {global, utils:sname(NextStorageID)},
+gatherAllData( [ID | Rest], DataSoFar) ->
+    NextData = gen_server:call( {global, utils:sname(ID)},
                                 {all_data} ),
-    gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
-                   DataSoFar ++ NextData, M ).
+    gatherAllData(Rest, DataSoFar ++ NextData).
 
 

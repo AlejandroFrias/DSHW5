@@ -52,7 +52,7 @@ findClosestTo(Dest, S) ->
   (?myID + utils:pow2(Chord)) rem utils:pow2(?m).
 
 distTo(ID, S) ->
-  utils:modDist(?m, ?myID, ID).
+  utils:modDist(?myID, ID, ?m).
 
 
 
