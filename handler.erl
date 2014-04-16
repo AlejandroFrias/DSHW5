@@ -368,6 +368,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 
     %% start the necessary storage processes from backup   
     utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?prevNodeID), 
+    utils:hlog("About to start SPs from ~p to ~p with backupsize ~p", [?prevNodeID, utils:modDec(?myID, ?m), length(?myBackup)], ?prevNodeID),
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
@@ -417,12 +418,13 @@ isMyProcess(ID, S) ->
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
     {SPData, Rest} = dataToDict(Data, Stop),
+    utils:hlog("Starting process with ID ~p and datasize ~p.", [Stop, dict:size(SPData)], 5),
     gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     Rest;
 
 startAllSPs(Start, Stop, M, Data) ->
     {SPData, Rest} = dataToDict(Data, Stop),
-
+    utils:hlog("Starting process with ID ~p and datasize ~p.", [Stop, dict:size(SPData)], 5),
     %%Start the SP
     gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     startAllSPs(Start, utils:modDec(Stop, M), M, Rest).
