@@ -419,7 +419,7 @@ isMyProcess(ID, S) ->
 %INCLUSIVE
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
-	utils:hlog("Before dataToDict: datasize ~p.", [dict:size(Data)], 5),
+	utils:hlog("Before dataToDict: datasize ~p.", [length(Data)], 5),
 	utils:hlog("    Data is: ~p", [Data], 5),
     {SPData, Rest} = dataToDict(Data, Stop),
     utils:hlog("    SPData is: ~p", [SPData], 5),
