@@ -299,10 +299,11 @@ handle_cast({_Pid, _Ref, leave}, S) ->
     erlang:halt();
 
 %% Replace the backup data with the new backup data
-handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
+handle_cast({Node, backupNode, NewPrevID, NewBackupData}, S) ->
 	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID),
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
+    erlang:monitor_node(Node, true),
     {noreply, S#state{prevNodeID = NewPrevID,
 		       myBackup = NewBackupData,
 		       minKey = NewMinKey,
@@ -310,22 +311,23 @@ handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
 		       myBackupSize = BackupSize
 		      }};
 
-
+%% Send out all of my data, formatted as a backup which was requested
 handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
-    gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
+    gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
 
+%% Forward a request for data which was not intended for me
 handle_cast( Msg = {_, backupRequest, _}, S ) ->
 	utils:hlog("Received backupRequest, forwarding it along", ?myID),
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
-%We also take a new node ID, since we need to keep track of prevNodeID properly
+%% We also take a new node ID, since we need to keep track of prevNodeID properly
 handle_cast( {appendBackup, BackupData, NewPrevNodeID}, S ) ->
 	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
 	NewBackupData = BackupData ++ ?myBackup,
