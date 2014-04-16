@@ -474,11 +474,11 @@ retrieve_many_sequence(Dict, M, [Key| Keys], MissedKeys) ->
                     retrieve_many_sequence(Dict, M, Keys, MissedKeys);
                 false ->
                     utils:log("Expected: ~p. Retrieved ~p", [dict:fetch(Key, Dict), Value]),
-                    retrieve_many_sequence(Dict, M, Keys, [Key | MissedKeys])
+                    retrieve_many_sequence(Dict, M, Keys, [{Key, dict:fetch(Key, Dict), erlang:phash2( Key, utils:pow2(M) )} | MissedKeys])
             end;
         error ->
             utils:log("-- Could not rerieve ~p --", [Key]),
-            retrieve_many_sequence(Dict, M, Keys, [Key | MissedKeys])
+            retrieve_many_sequence(Dict, M, Keys, [{Key, dict:fetch(Key, Dict), erlang:phash2( Key, utils:pow2(M) )} | MissedKeys])
     end.
 
 %% Get the current state of the system (minus the node list)
