@@ -45,7 +45,7 @@ Interesting Bugs We Ran Into:
 We were trying to monitor a gen_server process rather than an entire erlang
 node. When we then changed the global name of a process, the monitor thought
 the connection was lost, causing our system to think the node died. We solved
-this by using monitor_node instead. Jesse Wattsrussell helped us figure this
+this by using monitor_node instead. Jesse Watts-Russell helped us figure this
 out.
 
 We pulled the modular arithmetic out of the main file with helper functions in
@@ -53,3 +53,4 @@ utils.erl. We kept making the same mistake of modding a number and expecting it
 to be positive. We eventually had massive problems with modular arithmetic
 and having various functions assume things about modular helper functions.
 
+And so many more.................................................................
