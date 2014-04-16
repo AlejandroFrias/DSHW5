@@ -42,8 +42,6 @@ mathescape=true}
 
 \everymath{\displaystyle}
 
-\newcolumntype{T}{p{2in}<{\ttfamily}}
-
 \newcommand{\sh}{\tt{store\_handler}}
 \renewcommand{\sp}{\tt{storage\_process}}
 \newcommand{\gs}{\tt{gen\_server}}
@@ -124,7 +122,7 @@ In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an
 \setlength{\extrarowheight}{5pt}
 \setlength{\LTcapwidth}{\textwidth}
 
-\begin{longtable}{p{4.5in}T}
+\begin{longtable}{p{5in}p{1.8in}}
 \caption{Description of messages in the system.  In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.}
 \label{msgTable}\\
 \textbf{Message Description} & \textbf{Erlang Pattern} \\
@@ -134,28 +132,31 @@ In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an
 \endfoot
 \endlastfoot
 
-Store Request. Sent by either OW or a \sp{} to a \sp{} to store \tt{value} for \tt{key}. These are only ever received by \sp{} es in the network. When an \sp{} receives such a message, it first checks if the hashed key is equal to its own ID. If it is, then it stores the value for the specified key, and sends a \tt{backup\_store} message to its \sh. If not, it forwards it to the closest \sp{} to the destination (closest here meaning nearest process \textit{before} the destination, since processes can only send messages forward in the ring). &
+Store Request. Sent by either OW or a \sp{} to a \sp{} to store \tt{value} for \tt{key}. These are only ever received by \sp es in the network. When a \sp{} receives such a message, it first checks if the hashed key is equal to its own ID. If it is, then it stores the value for the specified key, and sends a \tt{backup\_store} message to its \sh. If not, it forwards it to the closest \sp{} to the destination (closest here meaning nearest process \textit{before} the destination, since processes can only send messages forward in the ring). &
 \{Pid, Ref, store, Key, Value\} \\
 
-Stored Confirmation. Sent by an \sh{} to OW after the corresponding request has been stored in the proper \sp{} and the data has been backed up in the \sh{} sending the message. &
-\{Ref, stored, Old\_Value\} \\
+Stored Confirmation. Sent by an \sh{} to OW after the corresponding request has been stored in the proper \sp{} and the data has been backed up in the \sh{} sending the message.  \tt{OldValue} is \tt{no\_value} iff this is the first time something has been stored for the given \tt{Key}. &
+\{Ref, stored, OldValue\} \\
 
 Retrieve Request. Sent by OW and \sp es; received by \sp es. When a \sp{} receives such a message, it checks if the hash of the key is equal to its own process ID. If it is, the \sp{} has the value for that key, and replies with a retrieve response. If not, it forwards it to the closest \sp{} to the destination (closest as defined above). &
 \{Pid, Ref, retrieve, Key\} \\
 
-Retrieve Response. Sent by \sp es to the OW. After a \sp{} receives a retrieve request meant for it, it looks up the relevant value and reports it to the requesting process in the OW. &
+Retrieve Response. Sent by \sp es to the OW. After a \sp{} receives a retrieve request meant for it, it looks up the relevant value and reports it to the requesting process in the OW.  \tt{Value} is \tt{no\_value} iff there is no known value corresponding to the given key. &
 \{Ref, retrieved, Value\} \\
 
-First Key Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receieves this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a first key computation by adding the ref to its list of ongoing computations and sending a First Key Computation message to the next node in the ring. &
+First Key Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receieves this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a first key computation by adding the ref to its list of ongoing computations and sending a First Key Computation message to the \sh{} of the next node in the ring. &
 \{Pid, Ref, first\_key\} \\
 
-Last Key Request. Sent by the OW to \sp{} es, and by \sp es to \sh s. When a \sp{} receives this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a last key computation by adding the ref to its list of ongoing computations and sending a Last Key Computation message to the next node in the ring. &
+Last Key Request. Sent by the OW to \sp{} es, and by \sp es to \sh s. When a \sp{} receives this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a last key computation by adding the ref to its list of ongoing computations and sending a Last Key Computation message to the \sh{} of the next node in the ring. &
 \{Pid, Ref, last\_key\} \\
 
-Num Keys Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receieves this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a num keys computation by adding the ref to its list of ongoing computations and sending a Num Keys Computation message to the next node in the ring. &
+Num Keys Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receieves this, it will forward the message up to its \sh. When such a message is received by a \sh, it will start a num keys computation by adding the ref to its list of ongoing computations and sending a Num Keys Computation message to the \sh{} of the next node in the ring. &
 \{Pid, Ref, num\_keys\} \\
 
-Node List Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receieves this, it will forward the message up to its \sh.  When such a message is received by a \sh, it will query the global registry for the list of nodes and report that data to the requester. &
+Messages About Keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over and the received message contains the result. The receiver will then send the result \tt{ComputationSoFar} back to the OW.  Otherwise, it will update \tt{ComputationSoFar} with its relevant value and forward the message to the next node's \sh.    &
+\{Pid, Ref, *\_key(s?), ComputationSoFar\} \vskip.1in {\footnotesize Where that the atom is a regular expression} \\
+
+Node List Request. Sent by the OW to \sp es, and by \sp es to \sh s. When a \sp{} receives this, it will forward the message to its \sh.  When such a message is received by a \sh, it will query the global registry for the list of nodes, then filter and sort those results to include only the ID numbers of \tt{handler} nodes.  That result is then returned to the requester.  &
 \{Pid, Ref, node\_list\} \\
 
 Request Result. Sent to the OW by a \sh. This reports the result of a First Key, Last Key, Num Keys, or Node List Request to the original requester after the \sh s have finished computing the result. &
@@ -170,33 +171,35 @@ Leave Request. Sent by the OW to \sp es and by \sp es to \sh s. When received by
 Backup Store Request. Sent by \sh{} and \sp, and received by \sh. If a \sh{} receives this message from a \sp, it forwards the message to the next \sh. If an \sh{} receives this message from another \sh, it will back up the data in the message, then notify the OW of the store's success and the old value. & 
 \{Pid, Ref, backup\_store, Key, Value, ProcessID\} \\
 
-Messages About Keys.  Sent and received by \sh.  If \tt{Ref} is in the list of the receiver's in-progress computations, the computation is over and the received message contains the result. The receiver will then send the result \tt{ComputationSoFar} back to the OW.  Otherwise, it will update \tt{ComputationSoFar} with its relevant value and forward the message to the next node's \sh.  &
-\{Pid, Ref, *\_key, ComputationSoFar\} \\
-
-Joining Behind. Received and sent by \sh. A \sh{} will send this when it is joining to the next node's \sh{} to indicate that it is joining behind the recipient in the ring. When received, send all stored backup data to the sender, then delete all backup data for processes numbered less than \tt{NodeID}. &
-\{Pid, joining\_behind, NodeID\} \\
+Joining Behind. A synchronous message received and sent by \sh. A \sh{} will send this when it is joining to the next node's \sh{} to indicate that it is joining behind the recipient in the ring. When received, send all stored backup data to the sender, then delete all backup data for processes numbered less than \tt{NodeID}.  Update local value of \tt{prevNodeID}, and also change the target node of the Erlang monitoring. &
+\{joining\_behind, NodeID\} \\
 
 Joining in Front.  Received and sent by \sh. A \sh{} will send this when it is joining to the previous node's \sh{} to indicate that it is joining in front of the recipient in the ring. When receiving such a message, % if your ID is equal to \tt{DestID}, 
-kill the data \sp es that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one. &
-\{joining\_front, NodeID, DestID\} \\
+kill the data \sp es that the new node is now running (i.e. the ones numbered from \tt{NodeID} to the ID of the node after the new one.  Update local value of \tt{nextNodeID}. &
+\{joining\_front, NodeID\} \\
 
-Node with \tt{NodeID} Died.  Received by \sh, sent by a \gs{} listener started by that particular \sh. This is a notification that the node behind the receiving node has stopped running. When such a message is received, the \sh{} changes the node's ID to \tt{NodeID}, then uses all of the backup data it's holding to start up new data \sp es. Then it forwards its backup data (which the \sp s now have primary responsibility for) to the next node to be backed up. Finally it deletes the backup data, and sends a \tt{backup\_request} message around the ring, to get the data it should be backing up from the node behind it. & \{died, NodeID\} \\
+The Erlang node at \tt{Node} died.  Received by \sh, sent by the Erlang system because the particular \sh{} requested it. This is a notification that the node behind the receiving node has stopped running. 
 
-Append Backup. Sent and received by \sh s. When received, the \sh adds the data contained to its backup data. This is sent when a node $A$ dies, by $A$'s successor to $A$'s successor's successor to ensure that the data on $A$ is backed up. &
-\{appendBackup, Data\}\\
+When such a message is received, the \sh{} changes its node's ID to \tt{prevNodeID} (the ID of the now-deceased node), which is a data element of the \sh's record.  The \sh{} then uses all of the backup data it is holding to start up new \sp es to take over from the node that died. Then it forwards its backup data (of the node that died) to its next node in an \tt{appendBackup} message, which will now be in charge of backing up that data.
 
-Backup Node Data. Received and sent by \sh. When received, overwrite our backup data with the data in the message. Sent by a node $A$'s predecessor when node $A$ died and $A$'s successor is taking over for it.&
-%Sent to a node $A$'s successor when $A$'s predecessor died and $A$ is taking over for its predecessor.  & 
-\{backupNode, Data\} \\
+Finally it deletes the backup data, and sends a \tt{backupRequest} message around the ring, to get from the node now behind it the data it should now be backing up, along with that node's ID. & \{nodedown, Node\} \\
 
-Backup Request.  Received and sent by \sh.  If it is received on the node with \tt{DestID}, send each of this node's \sp es an \tt{all\_data} message.  After compiling all of the results from those requests, send all of this node's stored data to this node's successor node in a \tt{backup\_node} message.  If this node is not \tt{DestID}, just forward the request message to the next node's \sh. Initially sent by a node which stepped into the void left by a node that died.  & 
-\{backupRequest, DestID\} \\
+Append Backup. Sent and received by \sh s. When received, the \sh{} adds the data contained to its backup data. This is sent when a node $A$ dies, by $A$'s successor to $A$'s successor's successor to ensure that the data newly-stored on $A$'s successor is backed up.  Also updates the value of \tt{prevNodeID} on $A$'s successor's successor to reflect the new ID of $A$'s successor (which is the ID of now-defunct $A$). &
+\{appendBackup, BackupData, NewPrevNodeID\}\\
 
-All data request message.  Received by \sp{} and sent by \sh.  When received by a \sp, respond with an \tt{all\_data\_send} message containing all this \sp's data.  & 
+Backup Node Data. Received and sent by \sh. When received, overwrite our backup data with the data in the message; update our \tt{prevNodeID}, and tell Erlang to monitor the node that's now previous to us (given in this message as \tt{Node}). Sent by a node $A$'s predecessor when node $A$ died and $A$'s successor is taking over for it, after node $A$'s predecessor received a \tt{backupRequest} message. &
+
+\{Node, backupNode, NewPrevID, NewBackupData\} \\
+
+Backup Request.  Received and sent by \sh.
+
+If it is received on the node whose \tt{nextNodeID} is \tt{DiedNodeID}, send each of this node's \sp es an \tt{all\_data} message.  After compiling all of the results from those requests, send all of this node's stored data to this node's successor node in a \tt{backupNode} message.
+
+Otherwise, just forward the request message to the next node's \sh. Initially sent by a node which stepped into the void left by a node that died.  & 
+\{Pid, backupRequest, DiedNodeID\} \\
+
+All data request message.  Synchronously received by \sp{} and sent by \sh.  When received by a \sp, respond with a list containing all this \sp's data.  & 
 \{all\_data\} \\
-
-All data send message.  Received by \sh{} and sent by \sp.  The \sh{} adds the received data to an ongoing list of data and removes the sender from the list of processes it is waiting for. If it's the last response that was being waited for, send the \tt{backup\_node} message to the next node. & 
-\{all\_data, Data\}
 
 \end{longtable}
 
