@@ -243,7 +243,7 @@ leave(ProcID, M, Debug) ->
     {ok, AfterNodeList} = node_list(ProcID, false),
     AfterStorageProcIDs = lists:sort([utils:getID(N) || N <- global:registered_names(), utils:isStorage(N)]),
 
-    utils:dlog("NodeListBefore: ~p, NodeListAfter: ~p", [BeforeNodeList, AfterNodeList], Debug),
+    io:format("      NodeListBefore: ~p, NodeListAfter: ~p", [BeforeNodeList, AfterNodeList]),
 
     NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
     FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
@@ -482,7 +482,7 @@ get_state(M) ->
     {ok, NumKeys} = num_keys(rand_id(M), false),
     {ok, FirstKey} = first_key(rand_id(M), false),
     {ok, LastKey} = last_key(rand_id(M), false),
-    utils:log("State: ~nNumber of Keys => ~p.~nFirst Key => ~p.~nLast Key => ~p.", 
+    utils:log("State: ~n  Number of Keys => ~p.~n  First Key => ~p.~n  Last Key => ~p.", 
          [NumKeys, FirstKey, LastKey]),
     {NumKeys, FirstKey, LastKey}.
 
