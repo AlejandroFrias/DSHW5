@@ -49,6 +49,7 @@ this by using monitor_node instead. Jesse Wattsrussell helped us figure this
 out.
 
 We pulled the modular arithmetic out of the main file with helper functions in
-utils.erl, thus making for a better coding experience. We kept making the same
-mistake of modding a number and expecting it to be positive.
+utils.erl. We kept making the same mistake of modding a number and expecting it 
+to be positive. We eventually had massive problems with modular arithmetic
+and having various functions assume things about modular helper functions.
 

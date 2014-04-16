@@ -145,12 +145,12 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 						   myMonitoredNode = NewMonitoredNode}};
 
 
-handle_call({_Pid, _Ref, leave}, _From, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID, ?m)],
-    ActualProcsToTerminate = utils:droplast(ProcsToTerminate),
-    terminateProcs(ActualProcsToTerminate),
-    utils:hlog("Asked to leave by outside world.", ?myID),
-    {stop, normal, "Asked to leave by outside world", S};
+% handle_call({_Pid, _Ref, leave}, _From, S) ->
+%     ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID, ?m)],
+%     ActualProcsToTerminate = utils:droplast(ProcsToTerminate),
+%     terminateProcs(ActualProcsToTerminate),
+%     utils:hlog("Asked to leave by outside world.", ?myID),
+%     {stop, normal, "Asked to leave by outside world", S};
 
 
 handle_call(Msg, _From, S) ->

@@ -37,6 +37,7 @@
 %Two to the M
 twoM(M) -> 1 bsl M.
 
+%Get the hash of a value
 hash( Key, M ) ->
     MaxProcID = twoM(M),
     % this erlang built-in hash function works on any erlang term (though in
@@ -51,6 +52,7 @@ findClosestTo(Dest, S) ->
   Chord = trunc(utils:log2(Dist)),
   (?myID + utils:pow2(Chord)) rem utils:pow2(?m).
 
+%Distance from me (ID gathered from S) to the ID specified around the ring
 distTo(ID, S) ->
   utils:modDistZero(?myID, ID, ?m).
 
@@ -65,6 +67,7 @@ distTo(ID, S) ->
 %%% GenServer Callbacks (For the rest of the code)
 %%%============================================================================
 
+%Initialize a storage process with specified data
 init( {M, MyID, MyHandlerPid, MyDict} ) ->
     utils:slog( "Starting with handler Pid ~w.", [MyHandlerPid], MyID),
     process_flag(trap_exit, true),
@@ -78,9 +81,12 @@ handle_call({all_data}, _From, S) ->
   utils:slog("  Replying with my data.", ?myID),
   {reply, ListWithID, S};
 
+%Terminate message from our handler.
 handle_call(terminate, _From, S) ->
   utils:slog("Goodbye.", ?myID),
   {stop, normal, terminated, S};
+
+%Other messages!
 handle_call(Msg, _From, S) ->
   utils:slog("UH OH! We don't support msgs like ~p.", [Msg], ?myID),
 	{noreply, S}.
@@ -90,9 +96,11 @@ handle_call(Msg, _From, S) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%% MESSAGES FROM THE CONTROLLER %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%Store requests from outside world
 handle_cast(Msg = {Pid, Ref, store, Key, Value}, S) ->
 	Dest = hash(Key, ?m),
 	case Dest == ?myID of
+    %If we have to store it
 		true -> 
 			utils:slog("Stored {~p, ~p} and notifying handler.", [Key, Value], ?myID),
 			OldDict = ?myDict,
@@ -102,6 +110,7 @@ handle_cast(Msg = {Pid, Ref, store, Key, Value}, S) ->
 			gen_server:cast(?myHandlerPid, {Pid, Ref, backup_store, Key, Value, ?myID}),
 
 			{noreply, S#state{myDict = NewDict}};
+    %If it's not for us, forward it to the closest
 		false ->
 			Closest = findClosestTo(Dest, S),
 			utils:slog("Received store message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
@@ -109,9 +118,11 @@ handle_cast(Msg = {Pid, Ref, store, Key, Value}, S) ->
 			{noreply, S}
 	end;
 
+%Retrieve messages from OW
 handle_cast(Msg = {Pid, Ref, retrieve, Key}, S) ->
 	case (Dest = hash(Key, ?m)) == ?myID of
 		true -> 
+      %If it's something we're storing, look it up and send the value
       case dict:is_key(Key, ?myDict) of
         true ->
           Value = dict:fetch(Key, ?myDict);
@@ -121,6 +132,7 @@ handle_cast(Msg = {Pid, Ref, retrieve, Key}, S) ->
       utils:slog("Retrieved Value ~p for Key ~p.", [Value, Key], ?myID),
       Pid ! {Ref, retrieved, Value};
     false ->
+      %Otherwise forward it to the closest
       Closest = findClosestTo(Dest, S),
       utils:slog("Received retrieve message for SP ~w, forwarding it to ~w", [Dest, Closest], ?myID),
       gen_server:cast({global, utils:sname(Closest)}, Msg)
