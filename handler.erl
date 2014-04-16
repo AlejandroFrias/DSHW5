@@ -358,9 +358,9 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
     global:register_name( utils:hname( ?prevNodeID ), self() ),
 
-    
+
     %% start the necessary storage processes from backup   
-    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?myID), 
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?prevNodeID), 
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
@@ -464,14 +464,15 @@ calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
 
 
-gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
+gatherAllData(IDs) -> gatherAllData(IDs, []).
+
+gatherAllData( [], DataSoFar) ->
     % utils:log("DATA SO FAR: ~p", [DataSoFar]),
     DataSoFar;
 
-gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
-    NextData = gen_server:call( {global, utils:sname(NextStorageID)},
+gatherAllData( [ID | Rest], DataSoFar) ->
+    NextData = gen_server:call( {global, utils:sname(ID)},
                                 {all_data} ),
-    gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
-                   DataSoFar ++ NextData, M ).
+    gatherAllData(Rest, DataSoFar ++ NextData).
 
 
