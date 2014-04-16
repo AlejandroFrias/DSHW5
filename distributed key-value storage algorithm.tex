@@ -113,7 +113,11 @@ Overall, our system's correctness argument is fairly basic. The system works cor
 
 \section*{Testing}
 
-We tested our code in a variety of ways, largely using the test scripts contained in \tt{t.erl}. First, we started a single node with a variety of values for M. 
+We tested our code in a variety of ways, largely using the test scripts contained in \tt{t.erl}. First, we started a single node with a variety of values for M. Then, we did simple tests to ensure that everything was initialized properly, as shown in \tt{test_store_basic}. Then, we insert data into the system, and ensure that everything is correct, such as the number of keys, min and max keys, and that retreiving all the data worked. Then, we tested that pushing new data to keys already in the system would return the correct old values.
+
+After verifying that the basic capability worked, we started testing multiple nodes. We added nodes one by one, repeating the above tests each time and ensuring that everything still worked. Then, we killed nodes arbitrarily until we had again reached one node, checking for correctness each time. Finally, we added and removed nodes again arbitrarily, with more than one.
+
+We also did a series of the above tests with $m = 2$, so that we could test a system with as many nodes as storage processes. We basically performed the same tests as above, additionally testing from 4 nodes downwards.
 
 \section*{Messages}
 In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.

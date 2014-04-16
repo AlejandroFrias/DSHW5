@@ -291,7 +291,7 @@ test_store_basic(Num, M) ->
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
-    RetrieveSuccess = retrieve_many_sequence(Dict, M),
+    RetrieveSuccess = ([] == retrieve_many_sequence(Dict, M)),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
     FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
@@ -324,7 +324,7 @@ test_back_up(Num, Kill, M) ->
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
-    RetrieveSuccess = retrieve_many_sequence(Dict, M),
+    RetrieveSuccess = ([] == retrieve_many_sequence(Dict, M)),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
     FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
@@ -458,25 +458,27 @@ receive_overwrite_all([{Ref, {_Key, OldValue}} | Rest]) ->
 %% One at a time, confirm that each key-value pair exists.
 retrieve_many_sequence(KeyValueDict, M) ->
     utils:log("BEGIN retrieve_many_sequence"),
-    retrieve_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict)).
+    retrieve_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict), []).
 
-retrieve_many_sequence(_KeyValueDict, _M, []) ->
+retrieve_many_sequence(_KeyValueDict, _M, [], []) ->
     utils:log("++ PASS retrieve_many_sequence"),
-    true;
-retrieve_many_sequence(Dict, M, [Key| Keys]) ->
+    [];
+retrieve_many_sequence(_KeyValueDict, _M, [], MissedKeys) ->
+    utils:log("-- FAIL retrieve_many_sequence"),
+    MissedKeys;
+retrieve_many_sequence(Dict, M, [Key| Keys], MissedKeys) ->
     case retrieve(Key, rand_id(M), false) of
         {ok, Value} ->
             case dict:fetch(Key, Dict) == Value of
                 true ->
-                    retrieve_many_sequence(Dict, M, Keys);
+                    retrieve_many_sequence(Dict, M, Keys, MissedKeys);
                 false ->
                     utils:log("Expected: ~p. Retrieved ~p", [dict:fetch(Key, Dict), Value]),
-                    utils:log("-- FAIL retrieve_many_sequence --"),
-                    false
+                    retrieve_many_sequence(Dict, M, Keys, [{Key, dict:fetch(Key, Dict), erlang:phash2( Key, utils:pow2(M) )} | MissedKeys])
             end;
         error ->
-            utils:log("-- FAIL retrieve_many_sequence --"),
-            false
+            utils:log("-- Could not rerieve ~p --", [Key]),
+            retrieve_many_sequence(Dict, M, Keys, [{Key, dict:fetch(Key, Dict), erlang:phash2( Key, utils:pow2(M) )} | MissedKeys])
     end.
 
 %% Get the current state of the system (minus the node list)

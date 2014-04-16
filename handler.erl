@@ -119,8 +119,9 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
 %% for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
     utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, utils:modDec(?nextNodeID, ?m), ?m)],
-    terminateProcs(ProcsToTerminate),
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID, ?m)],
+    ActualProcsToTerminate = utils:droplast(ProcsToTerminate),
+    terminateProcs(ActualProcsToTerminate),
     {reply, self(), S#state{nextNodeID = NodeID}};
 
 
@@ -133,17 +134,21 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     NewMonitoredNode = erlang:node( Pid ),
     erlang:monitor_node( NewMonitoredNode, true ),
 
-    NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
-
+    NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDistLoop(ID, ?myID, ?m) =< utils:modDistLoop(NodeID, ?myID, ?m)],
+    {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackup),
     utils:hlog("Replying with my backup data.", ?myID),
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
 						   myBackup = NewBackup,
+                           myBackupSize = length(NewBackup),
+                           minKey = NewMinKey,
+                           maxKey = NewMaxKey,
 						   myMonitoredNode = NewMonitoredNode}};
 
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, utils:modDec(?nextNodeID, ?m), ?m)],
-    terminateProcs(ProcsToTerminate),
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID, ?m)],
+    ActualProcsToTerminate = utils:droplast(ProcsToTerminate),
+    terminateProcs(ActualProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
 
@@ -169,7 +174,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 		    OldValue = no_value,
 		    NewBackup = [{Key, Value, ProcessID} | ?myBackup],
 		    NewBackupSize = ?myBackupSize + 1;
-		OldBackupData = {_Key, Val, _ID} ->
+		OldBackupData = {_Key, Val, ProcessID} ->
 		    OldValue = Val,
 		    NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
 		    NewBackupSize = ?myBackupSize
@@ -294,6 +299,8 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 
 handle_cast({_Pid, _Ref, leave}, S) ->
     utils:hlog("Asked to leave by outside world. About to halt.", ?myID),
+    utils:hlog("My Backup DATA: ~p", [?myBackup], ?myID),
+    utils:hlog("My Backup Data has ~p things in it. ", [?myBackupSize], ?myID),
     % ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
     % terminateProcs(ProcsToTerminate),
 
@@ -319,7 +326,12 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
-    AllMyData = gatherAllData( utils:modSeq(?myID, ?nextNodeID, ?m) ),
+    %case ?myID == ?nextNodeID of
+    %	true ->
+   % 		AllMyData = gatherAllData((utils:modSeq(?myID, ?nextNodeID, ?m)));
+	%	false ->
+    %end
+    AllMyData = gatherAllData( utils:droplast(utils:modSeq(?myID, ?nextNodeID, ?m))),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
@@ -363,14 +375,15 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 
     %% start the necessary storage processes from backup   
     utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?prevNodeID), 
+    utils:hlog("About to start SPs from ~p to ~p with backupsize ~p", [?prevNodeID, utils:modDec(?myID, ?m), length(?myBackup)], ?prevNodeID),
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
-    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
+    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?prevNodeID),
     gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup, ?prevNodeID}),
     
     %% Request new backup data
-    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
+    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?prevNodeID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
 
@@ -399,23 +412,30 @@ terminate(_Reason, _State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+%Distance from myself to ID
 distTo(ID, S) ->
-    utils:modDist(?myID, ID, ?m).
+    utils:modDistZero(?myID, ID, ?m).
 
 
 isMyProcess(ID, S) ->
     (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
 %% init
+%INCLUSIVE
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
+	utils:hlog("Before dataToDict: datasize ~p.", [length(Data)], 5),
+	utils:hlog("    Data is: ~p", [Data], 5),
     {SPData, Rest} = dataToDict(Data, Stop),
+    utils:hlog("    SPData is: ~p", [SPData], 5),
+    utils:hlog("    Rest is: ~p", [Rest], 5),
+    utils:hlog("Starting process with ID ~p and datasize ~p.", [Stop, dict:size(SPData)], 5),
     gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     Rest;
 
 startAllSPs(Start, Stop, M, Data) ->
     {SPData, Rest} = dataToDict(Data, Stop),
-
+    utils:hlog("Starting process with ID ~p and datasize ~p.", [Stop, dict:size(SPData)], 5),
     %%Start the SP
     gen_server:start({global, utils:sname(Stop)}, storage, {M, Stop, self(), SPData}, []),
     startAllSPs(Start, utils:modDec(Stop, M), M, Rest).

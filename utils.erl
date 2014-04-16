@@ -15,7 +15,8 @@
           isHandler/1,
           isStorage/1,
           getID/1,
-          modDist/3,
+          modDistLoop/3,
+          modDistZero/3,
           log2/1,
           logB/2,
           pow2/1,
@@ -31,7 +32,8 @@
           modInc/2,
           modDec/2,
           key_min/2,
-          key_max/2]).
+          key_max/2,
+          droplast/1]).
 
 %% Prints a time stamp.
 timestamp() ->
@@ -76,6 +78,9 @@ hlog(Message, Format, ProcNum) ->
   S = io_lib:format(Message, Format),
   hlog(S, ProcNum).
 
+droplast(L) ->
+  first_n_elements(length(L) - 1, L).
+
 %% Grabs the first n elemented from a list, or all the items if N > length(List)
 first_n_elements(N, List) ->
   case length(List) > N of
@@ -110,7 +115,12 @@ getID(Name) ->
 
 %% returns the distance between two numbers, A and B, when there are 2^M numbers 
 %% and it wraps around. Finds the distance moving in the positive direction only.
-modDist(A, B, M) ->
+modDistLoop(A, A, M) ->
+  pow2(M);
+modDistLoop(A, B, M) ->
+  modDistZero(A, B, M).
+
+modDistZero(A, B, M) ->
   Dist = (B - A) rem pow2(M), 
   (Dist + pow2(M)) rem pow2(M).
 
@@ -136,7 +146,7 @@ hname(Num) ->
 
 %% Returns a sequence from Start to End that wraps around 2^M
 modSeq(Start, Start, M) ->
-  modSeq(0, pow2(M) - 1, M);
+  modSeq(0, pow2(M) - 1, M) ++ [0];
 modSeq(Start, End, M) ->
   modSeq(Start, End, M, []).
 
