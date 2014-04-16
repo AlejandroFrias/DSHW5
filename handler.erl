@@ -174,7 +174,7 @@ handle_cast(Msg = {Pid, Ref, backup_store, Key, Value, ProcessID}, S) ->
 		    OldValue = no_value,
 		    NewBackup = [{Key, Value, ProcessID} | ?myBackup],
 		    NewBackupSize = ?myBackupSize + 1;
-		OldBackupData = {_Key, Val, _ID} ->
+		OldBackupData = {_Key, Val, ProcessID} ->
 		    OldValue = Val,
 		    NewBackup = [{Key, Value, ProcessID} | lists:delete(OldBackupData, ?myBackup) ],
 		    NewBackupSize = ?myBackupSize
@@ -404,6 +404,7 @@ terminate(_Reason, _State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+%Distance from myself to ID
 distTo(ID, S) ->
     utils:modDist(?myID, ID, ?m).
 
