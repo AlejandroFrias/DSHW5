@@ -120,13 +120,14 @@ After verifying that the basic capability worked, we started testing multiple no
 We also did a series of the above tests with $m = 2$, so that we could test a system with as many nodes as storage processes. We basically performed the same tests as above, additionally testing from 4 nodes downwards. We also tested with $m=1$, which caught a bunch of stupid bugs.
 
 \section*{Messages}
-In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.
+
+All of the messages of our system --- and the bulk of the algorithm --- are described in the very long Table~\ref{msgTable}.  All entries in the right-hand column were intended to be presented in \tt{typewriter font} but \LaTeX{} was being uncooperative.
 
 \singlespacing
 \setlength{\extrarowheight}{5pt}
 \setlength{\LTcapwidth}{\textwidth}
 
-\begin{longtable}{p{5in}p{1.8in}}
+\begin{longtable}{p{5.3in}p{1.5in}}
 \caption{Description of messages in the system.  In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.}
 \label{msgTable}\\
 \textbf{Message Description} & \textbf{Erlang Pattern} \\
@@ -204,6 +205,8 @@ Otherwise, just forward the request message to the next node's \sh. Initially se
 
 All data request message.  Synchronously received by \sp{} and sent by \sh.  When received by a \sp, respond with a list containing all this \sp's data.  & 
 \{all\_data\} \\
+
+Received by \sp{} and sent by \sh.  Simply stops immediately.  & terminate
 
 \end{longtable}
 
