@@ -355,7 +355,10 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
 		   "of the backups, and then change my ID to the dead node's ID.", 
 	       [Node, ?prevNodeID], ?myID),
     global:unregister_name( utils:hname(?myID) ),
+    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
+    global:register_name( utils:hname( ?prevNodeID ), self() ),
 
+    
     %% start the necessary storage processes from backup   
     utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID, ?m)], ?myID), 
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
@@ -369,8 +372,7 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
 
-    utils:hlog("Changing my ID from ~p to ~p", [?myID, ?prevNodeID], ?myID),
-    global:register_name( utils:hname( ?prevNodeID ), self() ),
+    
     {noreply, S#state{myID = ?prevNodeID}};
 
 handle_info(Msg, S) ->
