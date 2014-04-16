@@ -322,7 +322,7 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
-    AllMyData = gatherAllData( utils:modSeq(?myID, ?nextNodeID, ?m) ),
+    AllMyData = gatherAllData( utils:modSeq(?myID, utils:modDec(?nextNodeID), ?m) ),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
