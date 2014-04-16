@@ -243,10 +243,14 @@ leave(ProcID, M, Debug) ->
     {ok, AfterNodeList} = node_list(ProcID, false),
     AfterStorageProcIDs = lists:sort([utils:getID(N) || N <- global:registered_names(), utils:isStorage(N)]),
 
+    utils:dlog("NodeListBefore: ~p, NodeListAfter: ~p", [BeforeNodeList, AfterNodeList], Debug),
+    %io:format("(Sizes) Before: ~p, After: ~p", [length(BeforeNodeList), length(AfterNodeList)])
+
     NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
     FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
     LastKeySuccess = (AfterLastKey == BeforeLastKey),
-    LeaveSuccess = (length(BeforeNodeList) == (length(AfterNodeList) - 1)),
+
+    LeaveSuccess = (length(BeforeNodeList) - 1 == length(AfterNodeList)),
     StorageSuccess = (BeforeStorageProcIDs == AfterStorageProcIDs),
 
     case (NumKeysSuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess and StorageSuccess) of
@@ -313,7 +317,7 @@ test_back_up(Num, Kill, M) ->
     {StartNumKeys, StartFirstKey, StartLastKey} = get_state(M),
     {ok, Dict} = store_many_sequence(Num, M),
 
-    LeaveSuccesses = [leave(rand_id(M), M, false) || _X <- lists:seq(1, Kill)],
+    LeaveSuccesses = [leave(rand_id(M), M, true) || _X <- lists:seq(1, Kill)],
     LeaveSuccess = not lists:member(false, LeaveSuccesses),
     
     {MinKey, _} = lists:min(dict:to_list(Dict)),
@@ -480,7 +484,7 @@ get_state(M) ->
     {ok, NumKeys} = num_keys(rand_id(M), false),
     {ok, FirstKey} = first_key(rand_id(M), false),
     {ok, LastKey} = last_key(rand_id(M), false),
-    utils:log("State: ~nNumber of Keys => ~p.~nFirst Key => ~p.~nLast Key => ~p.", 
+    utils:log("State: ~n  Number of Keys => ~p.~n  First Key => ~p.~n  Last Key => ~p.", 
          [NumKeys, FirstKey, LastKey]),
     {NumKeys, FirstKey, LastKey}.
 

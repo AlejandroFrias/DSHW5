@@ -138,7 +138,13 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 						   myBackup = NewBackup,
 						   myMonitoredNode = NewMonitoredNode}};
 
-    
+
+handle_call({_Pid, _Ref, leave}, _From, S) ->
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, utils:modDec(?nextNodeID), ?m)],
+    terminateProcs(ProcsToTerminate),
+    utils:hlog("Asked to leave by outside world.", ?myID),
+    {stop, normal, "Asked to leave by outside world", S};
+
 
 handle_call(Msg, _From, S) ->
     utils:hlog("UH OH! We don't support handle call msgs like ~p.", [Msg], ?myID),
@@ -283,6 +289,7 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 	    {noreply, S}
     end;
 
+
 handle_cast({_Pid, _Ref, leave}, S) ->
     utils:hlog("Asked to leave by outside world. About to halt.", ?myID),
     % ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
@@ -292,10 +299,11 @@ handle_cast({_Pid, _Ref, leave}, S) ->
     erlang:halt();
 
 %% Replace the backup data with the new backup data
-handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
+handle_cast({Node, backupNode, NewPrevID, NewBackupData}, S) ->
 	utils:hlog("Got backup data from previous node, my new previous ID is ~p", [NewPrevID], ?myID),
     {NewMinKey, NewMaxKey} = calculateMinMaxKey(NewBackupData),
     BackupSize = erlang:length(NewBackupData),
+    erlang:monitor_node(Node, true),
     {noreply, S#state{prevNodeID = NewPrevID,
 		       myBackup = NewBackupData,
 		       minKey = NewMinKey,
@@ -303,21 +311,23 @@ handle_cast({backupNode, NewPrevID, NewBackupData}, S) ->
 		       myBackupSize = BackupSize
 		      }};
 
+%% Send out all of my data, formatted as a backup which was requested
 handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
     AllMyData = gatherAllData( ?myID, ?nextNodeID, [], ?m ),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
-    gen_server:cast( Pid, {backupNode, ?myID, AllMyData} ),
+    gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
 
+%% Forward a request for data which was not intended for me
 handle_cast( Msg = {_, backupRequest, _}, S ) ->
 	utils:hlog("Received backupRequest, forwarding it along", ?myID),
     gen_server:cast( {global, utils:hname(?nextNodeID)}, Msg ),
     {noreply, S};
 
-%We also take a new node ID, since we need to keep track of prevNodeID properly
+%% We also take a new node ID, since we need to keep track of prevNodeID properly
 handle_cast( {appendBackup, BackupData, NewPrevNodeID}, S ) ->
 	utils:hlog("Received appendBackup message from the node behind me.", ?myID),
 	NewBackupData = BackupData ++ ?myBackup,
@@ -346,8 +356,8 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     global:unregister_name( utils:hname(?myID) ),
 
     %% start the necessary storage processes from backup   
-    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, ?myID - 1], ?myID), 
-    startAllSPs(?prevNodeID, ?myID - 1, ?m, ?myBackup),
+    utils:hlog("Starting processes from ~p to ~p.", [?prevNodeID, utils:modDec(?myID)], ?myID), 
+    startAllSPs(?prevNodeID, utils:modDec(?myID), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
     utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
@@ -438,7 +448,9 @@ updateMaxKey(Key, S) ->
 	    ?maxKey
     end.
 
-calculateMinMaxKey([]) -> {no_value, no_value};
+calculateMinMaxKey([]) -> 
+    {no_value, no_value};
+
 calculateMinMaxKey([{FirstKey,_,_}|Rest]) ->
     calculateMinMaxKey(Rest, FirstKey, FirstKey).
 
@@ -447,6 +459,7 @@ calculateMinMaxKey([{NextKey,_,_}|Rest], MaxKey, MinKey) ->
 
 calculateMinMaxKey([], MaxKey, MinKey) ->
     {MinKey, MaxKey}.
+
 
 gatherAllData( LastStorageID, LastStorageID, DataSoFar, _M ) ->
     % utils:log("DATA SO FAR: ~p", [DataSoFar]),
@@ -457,6 +470,5 @@ gatherAllData( NextStorageID, LastStorageID, DataSoFar, M ) ->
                                 {all_data} ),
     gatherAllData( utils:modInc( NextStorageID, M ), LastStorageID, 
                    DataSoFar ++ NextData, M ).
-
 
 
