@@ -308,7 +308,8 @@ handle_cast({Node, backupNode, NewPrevID, NewBackupData}, S) ->
 		       myBackup = NewBackupData,
 		       minKey = NewMinKey,
 		       maxKey = NewMaxKey,
-		       myBackupSize = BackupSize
+		       myBackupSize = BackupSize,
+		       myMonitoredNode = Node
 		      }};
 
 %% Send out all of my data, formatted as a backup which was requested
