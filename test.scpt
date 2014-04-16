@@ -71,7 +71,7 @@ on run argv
           key code 36 # press enter
 
           keystroke "t" using command down # new tab
-          keystroke "ssh "& item 1 of argv & "@heath.cs.hmc.edu"
+          keystroke "ssh "& item 1 of argv & "@willow.cs.hmc.edu"
           key code 36 # press enter
           keystroke "cd /home/"& item 1 of argv &"/courses/DSHW5"
           key code 36 # press enter

@@ -135,6 +135,8 @@ hname(Num) ->
   list_to_atom("handler" ++ integer_to_list(Num)).
 
 %% Returns a sequence from Start to End that wraps around 2^M
+modSeq(Start, Start, M) ->
+  modSeq(0, pow2(M) - 1, M);
 modSeq(Start, End, M) ->
   modSeq(Start, End, M, []).
 
