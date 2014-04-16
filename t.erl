@@ -243,12 +243,13 @@ leave(ProcID, M, Debug) ->
     {ok, AfterNodeList} = node_list(ProcID, false),
     AfterStorageProcIDs = lists:sort([utils:getID(N) || N <- global:registered_names(), utils:isStorage(N)]),
 
-    io:format("      NodeListBefore: ~p, NodeListAfter: ~p", [BeforeNodeList, AfterNodeList]),
+    utils:dlog("NodeListBefore: ~p, NodeListAfter: ~p", [BeforeNodeList, AfterNodeList], Debug),
+    %io:format("(Sizes) Before: ~p, After: ~p", [length(BeforeNodeList), length(AfterNodeList)])
 
     NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
     FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
     LastKeySuccess = (AfterLastKey == BeforeLastKey),
-    LeaveSuccess = (length(BeforeNodeList) == length(AfterNodeList) - 1),
+    LeaveSuccess = (length(BeforeNodeList) -1 == length(AfterNodeList)),
     StorageSuccess = (BeforeStorageProcIDs == AfterStorageProcIDs),
 
     case (NumKeysSuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess and StorageSuccess) of
