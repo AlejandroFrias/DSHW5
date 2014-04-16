@@ -115,6 +115,10 @@ Retrieve requests are the only messages that don't involve a handler at all. The
 
 Overall, our system's correctness argument is fairly basic. The system works correctly when the system remains static, as store requests work and ensure that the data is both in the correct storage node and backed up before they finish. When nodes join, we ensure that all data remains backed up, so that the state of our systems stays correct. Finally, when nodes die, other nodes immediately step in and replace the dead \sp es using the backup data, and quickly work to replace the backup that was lost, so that all data in the system is backed up. Thus, our distributed hashtable algorithm is correct even in the face of node's joining and leaving.
 
+\section*{Testing}
+
+We tested our code in a variety of ways, largely using the test scripts contained in \tt{t.erl}. 
+
 In this table, we use the initialism ``OW'' to stand for Outside World: i.e., an arbitrary computer outside of our system.
 
 \setlength{\extrarowheight}{5pt}

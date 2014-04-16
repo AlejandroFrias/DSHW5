@@ -134,6 +134,8 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
     erlang:monitor_node( NewMonitoredNode, true ),
 
     NewBackup = [D || D = {_Key, _Value, ID} <- ?myBackup, utils:modDist(ID, ?myID, ?m) =< utils:modDist(NodeID, ?myID, ?m)],
+
+    utils:hlog("Replying with my backup data.", ?myID),
     {reply, {?myBackup, ?minKey, ?maxKey}, S#state{prevNodeID = NodeID,
 						   myBackup = NewBackup,
 						   myMonitoredNode = NewMonitoredNode}};
@@ -398,7 +400,7 @@ terminate(_Reason, _State) ->
 
 
 distTo(ID, S) ->
-    utils:modDist(?m, ?myID, ID).
+    utils:modDist(?myID, ID, ?m).
 
 
 isMyProcess(ID, S) ->
