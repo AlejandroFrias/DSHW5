@@ -291,7 +291,7 @@ test_store_basic(Num, M) ->
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
-    RetrieveSuccess = [] == retrieve_many_sequence(Dict, M),
+    RetrieveSuccess = ([] == retrieve_many_sequence(Dict, M)),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
     FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
@@ -324,7 +324,7 @@ test_back_up(Num, Kill, M) ->
     {MaxKey, _} = lists:max(dict:to_list(Dict)),
     {EndNumKeys, EndFirstKey, EndLastKey} = get_state(M),
 
-    RetrieveSuccess = [] == retrieve_many_sequence(Dict, M),
+    RetrieveSuccess = ([] == retrieve_many_sequence(Dict, M)),
     NumKeySuccess = (StartNumKeys + dict:size(Dict) == EndNumKeys),
     FirstKeySuccess = (EndFirstKey == utils:key_min(MinKey, StartFirstKey)),
     LastKeySuccess = (EndLastKey == utils:key_max(MaxKey, StartLastKey)),
@@ -462,7 +462,7 @@ retrieve_many_sequence(KeyValueDict, M) ->
 
 retrieve_many_sequence(_KeyValueDict, _M, [], []) ->
     utils:log("++ PASS retrieve_many_sequence"),
-    true;
+    [];
 retrieve_many_sequence(_KeyValueDict, _M, [], MissedKeys) ->
     utils:log("-- FAIL retrieve_many_sequence"),
     MissedKeys;
