@@ -299,6 +299,8 @@ handle_cast({Pid, Ref, num_keys, ComputationSoFar}, S) ->
 
 handle_cast({_Pid, _Ref, leave}, S) ->
     utils:hlog("Asked to leave by outside world. About to halt.", ?myID),
+    utils:hlog("My Backup DATA: ~p", [?myBackup], ?myID),
+    utils:hlog("My Backup Data has ~p things in it. ", [?myBackupSize], ?myID),
     % ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID - 1, ?m)],
     % terminateProcs(ProcsToTerminate),
 
