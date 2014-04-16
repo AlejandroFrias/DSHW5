@@ -145,7 +145,7 @@ hname(Num) ->
 
 %% Returns a sequence from Start to End that wraps around 2^M
 modSeq(Start, Start, M) ->
-  modSeq(0, pow2(M) - 1, M);
+  modSeq(0, pow2(M) - 1, M) ++ [0];
 modSeq(Start, End, M) ->
   modSeq(Start, End, M, []).
 
