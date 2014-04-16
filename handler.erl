@@ -324,7 +324,7 @@ handle_cast( {Pid, backupRequest, DiedNodeID}, S )
   when DiedNodeID == ?nextNodeID ->
   	utils:hlog("Received backupRequest for me, assembling backup from my SPs. ", ?myID),
     % get all my storage nodes' data
-    AllMyData = gatherAllData( utils:modSeq(?myID, utils:modDec(?nextNodeID), ?m) ),
+    AllMyData = gatherAllData( utils:droplast(utils:modSeq(?myID, ?nextNodeID, ?m))),
     utils:hlog("Data assembled, sending to next node ~p.", [?nextNodeID], ?myID),
     gen_server:cast( Pid, {node(), backupNode, ?myID, AllMyData} ),
     {noreply, S};
@@ -371,11 +371,11 @@ handle_info( {nodedown, Node}, S ) when Node == ?myMonitoredNode ->
     startAllSPs(?prevNodeID, utils:modDec(?myID, ?m), ?m, ?myBackup),
 
     %% Transfer our backup data to next node
-    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?myID),
+    utils:hlog("Sending appendBackup message to handler~p", [?nextNodeID], ?prevNodeID),
     gen_server:cast({global, utils:hname( ?nextNodeID )}, {appendBackup, ?myBackup, ?prevNodeID}),
     
     %% Request new backup data
-    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?myID),
+    utils:hlog("Sending a backupRequest request around the ring, starting with handler~p", [?nextNodeID], ?prevNodeID),
     gen_server:cast( {global, utils:hname( ?nextNodeID )},
 		     {self(), backupRequest, ?prevNodeID} ),
 
