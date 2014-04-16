@@ -471,10 +471,10 @@ retrieve_many_sequence(Dict, M, [Key| Keys], MissedKeys) ->
         {ok, Value} ->
             case dict:fetch(Key, Dict) == Value of
                 true ->
-                    retrieve_many_sequence(Dict, M, Keys);
+                    retrieve_many_sequence(Dict, M, Keys, MissedKeys);
                 false ->
                     utils:log("Expected: ~p. Retrieved ~p", [dict:fetch(Key, Dict), Value]),
-                    retrieve_many_sequence(Dict, M, Keys, [Key | MissedKeys]);
+                    retrieve_many_sequence(Dict, M, Keys, [Key | MissedKeys])
             end;
         error ->
             utils:log("-- Could not rerieve ~p --", [Key]),
