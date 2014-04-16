@@ -4,7 +4,7 @@
 %%%
 %%% Tests and stuff.
 %%% 
-%%% Functions for by-hand testing as well as more built out tests are here
+%%% Functions for by-hand testing as well as more built out tests are here.
 %%%-----------------------------------------------------------------------------
 
 
@@ -12,6 +12,7 @@
 -module (t).
 
 -export([initAsh/0,
+         initAsh/1,
          init/0,
          init/1,
          connect/1,
@@ -35,8 +36,15 @@
 %% Alphabet (lower case and upper case) and space
 -define (CHARS, lists:seq(97, 122) ++ lists:seq(65, 90) ++ [32]).
 
+
+%% Initialize and connect to 'node1@ash' in one easy method (accepts Seed and 
+%%  returns the See used)
 initAsh() ->
-    Seed = init(),
+    Seed = now()
+    initAsh(Seed).
+
+initAsh(Seed) ->
+    init(Seed),
     connect('node1@ash'),
     Seed.
 
@@ -44,12 +52,8 @@ initAsh() ->
 %% Also seeds the random to now() and returns the seed used for repeating the 
 %% test if desired
 init() ->
-    _ = os:cmd("epmd -daemon"),
-    net_kernel:start([testy, shortnames]),
-    {A1, A2, A3} = now(),
-    utils:log("Seeding random with ~p", [{A1, A2, A3}]),
-    random:seed(A1, A2, A3),
-    {A1, A2, A3}.
+    Seed = now(),
+    init(Seed).
 
 %% If you desire to init with a given seed. Good for reproducing tests
 init(Seed = {A1, A2, A3}) ->
@@ -225,6 +229,7 @@ node_list(ProcID, Debug) ->
     Success.
 
 %% Sends leave request
+%% Returns true or false if the system stays the same after leave request
 leave(ProcID, M) ->
     leave(ProcID, M, true).
 
@@ -273,9 +278,9 @@ leave(ProcID, M, Debug) ->
 %% have been made before this function is called after a system is set up
 test_empty(M) ->
     Good1 = test_num_keys_all(0, utils:pow2(M) - 1),
-    Good2 = test_first_keys_all([], utils:pow2(M) - 1) and Good1,
+    Good2 = test_first_keys_all(no_value, utils:pow2(M) - 1) and Good1,
     Good3 = test_num_keys_all_parallel(0, utils:pow2(M) - 1) and Good2,
-    Good4 = test_last_keys_all_parallel([], utils:pow2(M) - 1) and Good3,
+    Good4 = test_last_keys_all_parallel(no_value, utils:pow2(M) - 1) and Good3,
     Good4.
 
 
@@ -419,7 +424,8 @@ store_many_sequence(Num, M, KeyValuePairs) ->
             error
     end.
 
-
+%% Stores Num random key-value pairs in parallel, sending the store requests 
+%% all at once and then collecting the responses as they come in)
 store_many_parallel(Num, M) ->
     RandKeyValues = [{rand_key_value(), rand_id(M)} || _N <- lists:seq(1, Num)],
     RefKeys = [{send_store(Key, Value, ID), {Key, Value}} || {{Key, Value}, ID} <- RandKeyValues],
@@ -431,7 +437,7 @@ store_many_parallel(Num, M) ->
     OverwriteSucceeded = receive_overwrite_all(NewRefKeys),
     ReceiveSucceeded and OverwriteSucceeded.
     
-
+%% Collects store confirmations
 receive_store_all([]) ->
   utils:log("store Parallel: Succeeded."),
   true;
@@ -456,6 +462,7 @@ receive_overwrite_all([{Ref, {_Key, OldValue}} | Rest]) ->
 
 
 %% One at a time, confirm that each key-value pair exists.
+%% Return a the ones that were missing or irretrievable.
 retrieve_many_sequence(KeyValueDict, M) ->
     utils:log("BEGIN retrieve_many_sequence"),
     retrieve_many_sequence(KeyValueDict, M, dict:fetch_keys(KeyValueDict), []).
@@ -490,14 +497,17 @@ get_state(M) ->
          [NumKeys, FirstKey, LastKey]),
     {NumKeys, FirstKey, LastKey}.
 
+%% Get a random storage process id from 0 to 2^M - 1.
 rand_id(M) ->
     random:uniform(utils:pow2(M)) - 1.
 
+%% Generates a  random key-value pair
 rand_key_value() ->
     Key = get_random_string(random:uniform(20) + 5, ?CHARS),
     Value = get_random_string(random:uniform(20) + 5, ?CHARS),
     {Key, Value}.
 
+%% generates a random string
 get_random_string(Length, AllowedChars) ->
     lists:foldl(fun(_, Acc) ->
                     [lists:nth(random:uniform(length(AllowedChars)),
