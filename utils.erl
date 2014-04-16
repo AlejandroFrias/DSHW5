@@ -31,7 +31,8 @@
           modInc/2,
           modDec/2,
           key_min/2,
-          key_max/2]).
+          key_max/2,
+          droplast/1]).
 
 %% Prints a time stamp.
 timestamp() ->
@@ -75,6 +76,9 @@ hlog(Message, ProcNum) ->
 hlog(Message, Format, ProcNum) ->
   S = io_lib:format(Message, Format),
   hlog(S, ProcNum).
+
+droplast(L) ->
+  first_n_elements(length(L) - 1, L).
 
 %% Grabs the first n elemented from a list, or all the items if N > length(List)
 first_n_elements(N, List) ->
