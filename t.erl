@@ -246,7 +246,7 @@ leave(ProcID, M, Debug) ->
     NumKeysSuccess = (AfterNumKeys == BeforeNumKeys),
     FirstKeySuccess = (AfterFirstKey == BeforeFirstKey),
     LastKeySuccess = (AfterLastKey == BeforeLastKey),
-    LeaveSuccess = (length(BeforeNodeList) == length(AfterNodeList) - 1),
+    LeaveSuccess = (length(BeforeNodeList) == (length(AfterNodeList) - 1)),
     StorageSuccess = (BeforeStorageProcIDs == AfterStorageProcIDs),
 
     case (NumKeysSuccess and FirstKeySuccess and LastKeySuccess and LeaveSuccess and StorageSuccess) of
