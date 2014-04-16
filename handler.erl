@@ -119,8 +119,9 @@ init({M, PrevNodeID, MyID, NextNodeID}) ->
 %% for the transfer.
 handle_call({joining_front, NodeID}, _From, S) ->
     utils:hlog("New node joining in front of me at ~p", [NodeID], ?myID),
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, utils:modDec(?nextNodeID, ?m), ?m)],
-    terminateProcs(ProcsToTerminate),
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(NodeID, ?nextNodeID, ?m)],
+    ActualProcsToTerminate = lists:drop_last(ProcsToTerminate),
+    terminateProcs(ActualProcsToTerminate),
     {reply, self(), S#state{nextNodeID = NodeID}};
 
 
@@ -145,8 +146,9 @@ handle_call({joining_behind, NodeID}, _From = {Pid, _Tag}, S) ->
 
 
 handle_call({_Pid, _Ref, leave}, _From, S) ->
-    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, utils:modDec(?nextNodeID, ?m), ?m)],
-    terminateProcs(ProcsToTerminate),
+    ProcsToTerminate = [{global, utils:sname(ID)} || ID <- utils:modSeq(?myID, ?nextNodeID, ?m)],
+    ActualProcsToTerminate = lists:drop_last(ProcsToTerminate),
+    terminateProcs(ActualProcsToTerminate),
     utils:hlog("Asked to leave by outside world.", ?myID),
     {stop, normal, "Asked to leave by outside world", S};
 
@@ -410,6 +412,7 @@ isMyProcess(ID, S) ->
     (distTo(ID, S) < distTo(?nextNodeID, S)) and ((?nextNodeID) =/= (?myID)).
 
 %% init
+%INCLUSIVE
 %% We use start as handler ID
 startAllSPs(Stop, Stop, M, Data) -> 
     {SPData, Rest} = dataToDict(Data, Stop),
